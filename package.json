@@ -1,7 +1,7 @@
 {
   "name": "dokploy-mcp",
-  "version": "1.0.0",
-  "description": "A comprehensive Model Context Protocol (MCP) server for Dokploy - supporting all 200+ API endpoints",
+  "version": "1.1.0",
+  "description": "Dokploy MCP Server with Smart Skill routing - 265+ tools with intelligent categorization for 80-97% token savings",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -20,7 +20,10 @@
     "docker",
     "deployment",
     "devops",
-    "api"
+    "api",
+    "smart-skill",
+    "token-optimization",
+    "ai-agent"
   ],
   "author": "",
   "license": "MIT",
