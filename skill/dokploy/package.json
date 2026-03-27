@@ -1,0 +1,29 @@
+{
+  "name": "@dokploy/smart-skill",
+  "version": "1.0.0",
+  "description": "智能分类路由 + 工作流引擎 for Dokploy MCP",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node --test dist/**/*.test.js"
+  },
+  "keywords": [
+    "dokploy",
+    "mcp",
+    "skill",
+    "workflow",
+    "deployment"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}
