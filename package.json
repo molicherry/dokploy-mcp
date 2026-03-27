@@ -1,0 +1,38 @@
+{
+  "name": "dokploy-mcp",
+  "version": "1.0.0",
+  "description": "A comprehensive Model Context Protocol (MCP) server for Dokploy - supporting all 200+ API endpoints",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "dokploy-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "dokploy",
+    "mcp",
+    "model-context-protocol",
+    "docker",
+    "deployment",
+    "devops",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
