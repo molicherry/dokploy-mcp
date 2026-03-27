@@ -7,6 +7,10 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { DokployClient } from "./client/index.js";
+import { DokploySkill } from "./skill/index.js";
+import { categoryMap, crossCategoryWorkflows } from "./skill/utils/category-router.js";
+import { workflows } from "./skill/workflows/index.js";
+import { createTools, type ToolDefinition } from "./tools.js";
 
 const DOKPLOY_URL = process.env.DOKPLOY_URL || "http://localhost:3000";
 const DOKPLOY_API_KEY = process.env.DOKPLOY_API_KEY || "";
@@ -33,2239 +37,334 @@ const server = new Server(
   }
 );
 
-interface ToolDefinition {
-  name: string;
-  description: string;
-  inputSchema: {
-    type: "object";
-    properties: Record<string, any>;
-    required?: string[];
-  };
-  handler: (args: any) => Promise<any>;
-}
+const allToolDefinitions: ToolDefinition[] = createTools(client);
 
-const toolDefinitions: ToolDefinition[] = [
+const skillTools = [
   {
-    name: "project_create",
-    description: "Create a new project in Dokploy",
+    name: "dokploy_smart_route",
+    description: "智能路由：根据自然语言描述自动识别意图并执行相应操作。这是主要的入口工具。",
     inputSchema: {
       type: "object",
       properties: {
-        name: { type: "string", description: "Name of the project" },
-        description: { type: "string", description: "Optional description" },
-      },
-      required: ["name"],
-    },
-    handler: (args) => client.post("/project.create", args),
-  },
-  {
-    name: "project_one",
-    description: "Get a specific project by ID",
-    inputSchema: {
-      type: "object",
-      properties: {
-        projectId: { type: "string", description: "ID of the project" },
-      },
-      required: ["projectId"],
-    },
-    handler: (args) => client.get("/project.one", { projectId: args.projectId }),
-  },
-  {
-    name: "project_all",
-    description: "Get all projects",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/project.all"),
-  },
-  {
-    name: "project_update",
-    description: "Update a project",
-    inputSchema: {
-      type: "object",
-      properties: {
-        projectId: { type: "string", description: "ID of the project" },
-        name: { type: "string", description: "New name" },
-        description: { type: "string", description: "New description" },
-      },
-      required: ["projectId", "name"],
-    },
-    handler: (args) => client.post("/project.update", args),
-  },
-  {
-    name: "project_remove",
-    description: "Remove a project",
-    inputSchema: {
-      type: "object",
-      properties: {
-        projectId: { type: "string", description: "ID of the project" },
-      },
-      required: ["projectId"],
-    },
-    handler: (args) => client.post("/project.remove", { projectId: args.projectId }),
-  },
-
-  {
-    name: "application_create",
-    description: "Create a new application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: { type: "string", description: "Name of the application" },
-        environmentId: { type: "string", description: "Environment ID" },
-        appName: { type: "string", description: "Optional app name" },
-        description: { type: "string", description: "Optional description" },
-        serverId: { type: "string", description: "Optional server ID" },
-      },
-      required: ["name", "environmentId"],
-    },
-    handler: (args) => client.post("/application.create", args),
-  },
-  {
-    name: "application_one",
-    description: "Get a specific application by ID",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.get("/application.one", { applicationId: args.applicationId }),
-  },
-  {
-    name: "application_delete",
-    description: "Delete an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.post("/application.delete", { applicationId: args.applicationId }),
-  },
-  {
-    name: "application_deploy",
-    description: "Deploy an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        title: { type: "string", description: "Optional deployment title" },
-        description: { type: "string", description: "Optional deployment description" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.post("/application.deploy", args),
-  },
-  {
-    name: "application_redeploy",
-    description: "Redeploy an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        title: { type: "string", description: "Optional deployment title" },
-        description: { type: "string", description: "Optional deployment description" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.post("/application.redeploy", args),
-  },
-  {
-    name: "application_start",
-    description: "Start an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.post("/application.start", { applicationId: args.applicationId }),
-  },
-  {
-    name: "application_stop",
-    description: "Stop an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.post("/application.stop", { applicationId: args.applicationId }),
-  },
-  {
-    name: "application_reload",
-    description: "Reload an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        appName: { type: "string", description: "App name" },
-      },
-      required: ["applicationId", "appName"],
-    },
-    handler: (args) => client.post("/application.reload", args),
-  },
-  {
-    name: "application_mark_running",
-    description: "Mark an application as running",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.post("/application.markRunning", { applicationId: args.applicationId }),
-  },
-  {
-    name: "application_cancel_deployment",
-    description: "Cancel ongoing deployment for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.post("/application.cancelDeployment", { applicationId: args.applicationId }),
-  },
-  {
-    name: "application_clean_queues",
-    description: "Clean queues for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.post("/application.cleanQueues", { applicationId: args.applicationId }),
-  },
-  {
-    name: "application_refresh_token",
-    description: "Refresh token for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.post("/application.refreshToken", { applicationId: args.applicationId }),
-  },
-  {
-    name: "application_move",
-    description: "Move an application to a different environment",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        targetEnvironmentId: { type: "string", description: "ID of the destination environment" },
-      },
-      required: ["applicationId", "targetEnvironmentId"],
-    },
-    handler: (args) => client.post("/application.move", args),
-  },
-  {
-    name: "application_disconnect_git_provider",
-    description: "Disconnect Git provider from an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.post("/application.disconnectGitProvider", { applicationId: args.applicationId }),
-  },
-  {
-    name: "application_save_environment",
-    description: "Save environment variables for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        env: { type: "string", description: "Environment variables" },
-        buildArgs: { type: "string", description: "Build arguments" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.post("/application.saveEnvironment", args),
-  },
-  {
-    name: "application_save_build_type",
-    description: "Configure build type for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        buildType: { 
-          type: "string", 
-          enum: ["dockerfile", "heroku_buildpacks", "paketo_buildpacks", "nixpacks", "static", "railpack"],
-          description: "Build type" 
-        },
-        dockerfile: { type: "string", description: "Dockerfile content" },
-        dockerContextPath: { type: "string", description: "Docker context path" },
-        dockerBuildStage: { type: "string", description: "Docker build stage" },
-        publishDirectory: { type: "string", description: "Publish directory for static builds" },
-        isStaticSpa: { type: "boolean", description: "Is static SPA" },
-        herokuVersion: { type: "string", description: "Heroku version" },
-        railpackVersion: { type: "string", description: "Railpack version" },
-      },
-      required: ["applicationId", "buildType"],
-    },
-    handler: (args) => client.post("/application.saveBuildType", args),
-  },
-  {
-    name: "application_save_github_provider",
-    description: "Configure GitHub provider for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        repository: { type: "string", description: "GitHub repository" },
-        owner: { type: "string", description: "Repository owner" },
-        branch: { type: "string", description: "Git branch" },
-        buildPath: { type: "string", description: "Build path" },
-        githubId: { type: "string", description: "GitHub integration ID" },
-        enableSubmodules: { type: "boolean", description: "Enable submodules" },
-        watchPaths: { type: "array", items: { type: "string" }, description: "Watch paths" },
-        triggerType: { type: "string", enum: ["push", "tag"], description: "Trigger type" },
-      },
-      required: ["applicationId", "repository", "owner", "branch", "buildPath"],
-    },
-    handler: (args) => client.post("/application.saveGithubProvider", args),
-  },
-  {
-    name: "application_save_gitlab_provider",
-    description: "Configure GitLab provider for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        gitlabRepository: { type: "string", description: "GitLab repository" },
-        gitlabOwner: { type: "string", description: "Repository owner" },
-        gitlabBranch: { type: "string", description: "Git branch" },
-        gitlabBuildPath: { type: "string", description: "Build path" },
-        gitlabId: { type: "string", description: "GitLab integration ID" },
-        gitlabProjectId: { type: "number", description: "GitLab project ID" },
-        gitlabPathNamespace: { type: "string", description: "Path namespace" },
-        enableSubmodules: { type: "boolean", description: "Enable submodules" },
-        watchPaths: { type: "array", items: { type: "string" }, description: "Watch paths" },
-      },
-      required: ["applicationId", "gitlabRepository", "gitlabOwner", "gitlabBranch", "gitlabBuildPath"],
-    },
-    handler: (args) => client.post("/application.saveGitlabProvider", args),
-  },
-  {
-    name: "application_save_bitbucket_provider",
-    description: "Configure Bitbucket provider for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        bitbucketRepository: { type: "string", description: "Bitbucket repository" },
-        bitbucketOwner: { type: "string", description: "Repository owner" },
-        bitbucketBranch: { type: "string", description: "Git branch" },
-        bitbucketBuildPath: { type: "string", description: "Build path" },
-        bitbucketId: { type: "string", description: "Bitbucket integration ID" },
-        enableSubmodules: { type: "boolean", description: "Enable submodules" },
-        watchPaths: { type: "string", description: "Watch paths" },
-      },
-      required: ["applicationId", "bitbucketRepository", "bitbucketOwner", "bitbucketBranch", "bitbucketBuildPath"],
-    },
-    handler: (args) => client.post("/application.saveBitbucketProvider", args),
-  },
-  {
-    name: "application_save_gitea_provider",
-    description: "Configure Gitea provider for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        giteaRepository: { type: "string", description: "Gitea repository" },
-        giteaOwner: { type: "string", description: "Repository owner" },
-        giteaBranch: { type: "string", description: "Git branch" },
-        giteaBuildPath: { type: "string", description: "Build path" },
-        giteaId: { type: "string", description: "Gitea integration ID" },
-        enableSubmodules: { type: "boolean", description: "Enable submodules" },
-        watchPaths: { type: "array", items: { type: "string" }, description: "Watch paths" },
-      },
-      required: ["applicationId", "giteaRepository", "giteaOwner", "giteaBranch", "giteaBuildPath"],
-    },
-    handler: (args) => client.post("/application.saveGiteaProvider", args),
-  },
-  {
-    name: "application_save_git_provider",
-    description: "Configure custom Git provider for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        customGitUrl: { type: "string", description: "Custom Git repository URL" },
-        customGitBranch: { type: "string", description: "Git branch" },
-        customGitBuildPath: { type: "string", description: "Build path" },
-        customGitSSHKeyId: { type: "string", description: "SSH key ID" },
-        enableSubmodules: { type: "boolean", description: "Enable submodules" },
-        watchPaths: { type: "array", items: { type: "string" }, description: "Watch paths" },
-      },
-      required: ["applicationId", "customGitUrl", "customGitBranch", "customGitBuildPath"],
-    },
-    handler: (args) => client.post("/application.saveGitProvider", args),
-  },
-  {
-    name: "application_save_docker_provider",
-    description: "Configure Docker provider for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        dockerImage: { type: "string", description: "Docker image" },
-        registryUrl: { type: "string", description: "Registry URL" },
-        username: { type: "string", description: "Registry username" },
-        password: { type: "string", description: "Registry password" },
-      },
-      required: ["applicationId", "dockerImage"],
-    },
-    handler: (args) => client.post("/application.saveDockerProvider", args),
-  },
-  {
-    name: "application_update_traefik_config",
-    description: "Update Traefik configuration for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        traefikConfig: { type: "string", description: "Traefik configuration content" },
-      },
-      required: ["applicationId", "traefikConfig"],
-    },
-    handler: (args) => client.post("/application.updateTraefikConfig", args),
-  },
-  {
-    name: "application_read_traefik_config",
-    description: "Read Traefik configuration for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-      },
-      required: ["applicationId"],
-    },
-    handler: (args) => client.get("/application.readTraefikConfig", { applicationId: args.applicationId }),
-  },
-  {
-    name: "application_read_monitoring",
-    description: "Read monitoring data for an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        appName: { type: "string", description: "App name of the application" },
-      },
-      required: ["appName"],
-    },
-    handler: (args) => client.get("/application.readAppMonitoring", { appName: args.appName }),
-  },
-  {
-    name: "application_update",
-    description: "Update an application",
-    inputSchema: {
-      type: "object",
-      properties: {
-        applicationId: { type: "string", description: "ID of the application" },
-        name: { type: "string", description: "Application name" },
-        appName: { type: "string", description: "App name" },
-        description: { type: "string", description: "Application description" },
-        environmentId: { type: "string", description: "Environment ID" },
-        buildType: {
+        request: {
           type: "string",
-          enum: ["dockerfile", "heroku_buildpacks", "paketo_buildpacks", "nixpacks", "static", "railpack"],
-          description: "Build type",
+          description: "自然语言描述您想执行的操作，例如：'部署一个 Next.js 应用到生产环境'、'创建 PostgreSQL 数据库'、'查看所有项目'",
         },
-        sourceType: {
-          type: "string",
-          enum: ["github", "docker", "git", "gitlab", "bitbucket", "gitea", "drop"],
-          description: "Source type",
+        context: {
+          type: "object",
+          description: "可选的上下文信息，如 projectId, environmentId 等",
         },
-        applicationStatus: {
-          type: "string",
-          enum: ["idle", "running", "done", "error"],
-          description: "Application status",
-        },
-        repository: { type: "string", description: "Repository URL or name" },
-        owner: { type: "string", description: "Repository owner" },
-        branch: { type: "string", description: "Repository branch" },
-        buildPath: { type: "string", description: "Repository build path" },
-        customGitUrl: { type: "string", description: "Custom Git URL" },
-        customGitBranch: { type: "string", description: "Custom Git branch" },
-        customGitBuildPath: { type: "string", description: "Custom Git build path" },
-        customGitSSHKeyId: { type: "string", description: "Custom Git SSH key ID" },
-        dockerImage: { type: "string", description: "Docker image" },
-        registryUrl: { type: "string", description: "Registry URL" },
-        username: { type: "string", description: "Registry username" },
-        password: { type: "string", description: "Registry password" },
-        dockerfile: { type: "string", description: "Dockerfile content or path" },
-        dockerContextPath: { type: "string", description: "Docker context path" },
-        dockerBuildStage: { type: "string", description: "Docker build stage" },
-        env: { type: "string", description: "Environment variables" },
-        buildArgs: { type: "string", description: "Build arguments" },
-        command: { type: "string", description: "Command to run" },
-        publishDirectory: { type: "string", description: "Publish directory" },
-        isStaticSpa: { type: "boolean", description: "Is static SPA" },
-        autoDeploy: { type: "boolean", description: "Enable auto deploy" },
-        enabled: { type: "boolean", description: "Enable application" },
-        enableSubmodules: { type: "boolean", description: "Enable Git submodules" },
-        githubId: { type: "string", description: "GitHub integration ID" },
-        gitlabId: { type: "string", description: "GitLab integration ID" },
-        bitbucketId: { type: "string", description: "Bitbucket integration ID" },
-        giteaId: { type: "string", description: "Gitea integration ID" },
-        replicas: { type: "number", description: "Replica count" },
-        memoryLimit: { type: "string", description: "Memory limit" },
-        memoryReservation: { type: "string", description: "Memory reservation" },
-        cpuLimit: { type: "string", description: "CPU limit" },
-        cpuReservation: { type: "string", description: "CPU reservation" },
-        watchPaths: { type: "array", items: { type: "string" }, description: "Watch paths" },
-        triggerType: { type: "string", enum: ["push", "tag"], description: "Deployment trigger type" },
       },
-      required: ["applicationId"],
+      required: ["request"],
     },
-    handler: (args) => client.post("/application.update", args),
   },
-
   {
-    name: "postgres_create",
-    description: "Create a PostgreSQL database",
+    name: "dokploy_deploy_application",
+    description: "完整应用部署工作流：自动创建项目、应用、配置源码、设置环境变量、部署、配置域名",
     inputSchema: {
       type: "object",
       properties: {
-        name: { type: "string", description: "Database service name" },
-        appName: { type: "string", description: "App name" },
-        databaseName: { type: "string", description: "Database name" },
-        databaseUser: { type: "string", description: "Database user" },
-        databasePassword: { type: "string", description: "Database password" },
-        environmentId: { type: "string", description: "Environment ID" },
-        description: { type: "string", description: "Optional description" },
-        dockerImage: { type: "string", description: "Docker image" },
-        serverId: { type: "string", description: "Server ID" },
+        projectName: { type: "string", description: "项目名称（不存在则自动创建）" },
+        appName: { type: "string", description: "应用名称" },
+        environmentId: { type: "string", description: "环境ID（可选）" },
+        sourceType: { type: "string", enum: ["github", "gitlab", "bitbucket", "gitea", "git", "docker"], description: "源码类型" },
+        repository: { type: "string", description: "仓库地址或名称" },
+        owner: { type: "string", description: "仓库所有者" },
+        branch: { type: "string", description: "分支名", default: "main" },
+        buildPath: { type: "string", description: "构建路径", default: "/" },
+        buildType: { type: "string", enum: ["dockerfile", "nixpacks", "static", "railpack", "heroku_buildpacks"], description: "构建类型", default: "nixpacks" },
+        envVars: { type: "string", description: "环境变量（格式：KEY=value\\nKEY2=value2）" },
+        domain: { type: "string", description: "自定义域名（可选）" },
       },
-      required: ["name", "appName", "databaseName", "databaseUser", "databasePassword", "environmentId"],
+      required: ["projectName", "appName", "sourceType", "repository"],
     },
-    handler: (args) => client.post("/postgres.create", args),
   },
   {
-    name: "postgres_one",
-    description: "Get a PostgreSQL database by ID",
-    inputSchema: {
-      type: "object",
-      properties: { postgresId: { type: "string", description: "PostgreSQL ID" } },
-      required: ["postgresId"],
-    },
-    handler: (args) => client.get("/postgres.one", { postgresId: args.postgresId }),
-  },
-  {
-    name: "postgres_update",
-    description: "Update a PostgreSQL database",
+    name: "dokploy_create_database",
+    description: "创建数据库工作流：创建数据库服务并返回连接信息",
     inputSchema: {
       type: "object",
       properties: {
-        postgresId: { type: "string", description: "PostgreSQL ID" },
-        name: { type: "string", description: "Database service name" },
-        appName: { type: "string", description: "App name" },
-        description: { type: "string", description: "Description" },
-        databaseName: { type: "string", description: "Database name" },
-        databaseUser: { type: "string", description: "Database user" },
-        databasePassword: { type: "string", description: "Database password" },
-        dockerImage: { type: "string", description: "Docker image" },
-        command: { type: "string", description: "Command" },
-        env: { type: "string", description: "Environment variables" },
-        memoryReservation: { type: "string", description: "Memory reservation" },
-        memoryLimit: { type: "string", description: "Memory limit" },
-        cpuReservation: { type: "string", description: "CPU reservation" },
-        cpuLimit: { type: "string", description: "CPU limit" },
-        externalPort: { type: "number", description: "External port" },
-        applicationStatus: { type: "string", enum: ["idle", "running", "done", "error"], description: "Application status" },
+        type: { type: "string", enum: ["postgres", "mysql", "mariadb", "mongo", "redis"], description: "数据库类型" },
+        name: { type: "string", description: "服务名称" },
+        appName: { type: "string", description: "应用名称" },
+        environmentId: { type: "string", description: "环境ID" },
+        databaseName: { type: "string", description: "数据库名" },
+        databaseUser: { type: "string", description: "数据库用户" },
+        databasePassword: { type: "string", description: "数据库密码" },
+        externalPort: { type: "number", description: "外部端口（可选）" },
       },
-      required: ["postgresId"],
+      required: ["type", "name", "appName", "environmentId", "databasePassword"],
     },
-    handler: (args) => client.post("/postgres.update", args),
   },
   {
-    name: "postgres_remove",
-    description: "Remove a PostgreSQL database",
-    inputSchema: { type: "object", properties: { postgresId: { type: "string", description: "PostgreSQL ID" } }, required: ["postgresId"] },
-    handler: (args) => client.post("/postgres.remove", { postgresId: args.postgresId }),
-  },
-  {
-    name: "postgres_deploy",
-    description: "Deploy a PostgreSQL database",
-    inputSchema: { type: "object", properties: { postgresId: { type: "string", description: "PostgreSQL ID" } }, required: ["postgresId"] },
-    handler: (args) => client.post("/postgres.deploy", { postgresId: args.postgresId }),
-  },
-  {
-    name: "postgres_start",
-    description: "Start a PostgreSQL database",
-    inputSchema: { type: "object", properties: { postgresId: { type: "string", description: "PostgreSQL ID" } }, required: ["postgresId"] },
-    handler: (args) => client.post("/postgres.start", { postgresId: args.postgresId }),
-  },
-  {
-    name: "postgres_stop",
-    description: "Stop a PostgreSQL database",
-    inputSchema: { type: "object", properties: { postgresId: { type: "string", description: "PostgreSQL ID" } }, required: ["postgresId"] },
-    handler: (args) => client.post("/postgres.stop", { postgresId: args.postgresId }),
-  },
-  {
-    name: "postgres_save_environment",
-    description: "Save PostgreSQL environment variables",
+    name: "dokploy_debug_service",
+    description: "诊断服务工作流：检查状态、查看日志、自动修复",
     inputSchema: {
       type: "object",
       properties: {
-        postgresId: { type: "string", description: "PostgreSQL ID" },
-        env: { type: "string", description: "Environment variables" },
+        identifier: { type: "string", description: "应用名、ID或域名" },
+        action: { type: "string", enum: ["auto", "restart", "redeploy", "rollback"], description: "修复动作", default: "auto" },
       },
-      required: ["postgresId"],
+      required: ["identifier"],
     },
-    handler: (args) => client.post("/postgres.saveEnvironment", args),
   },
   {
-    name: "postgres_save_external_port",
-    description: "Save PostgreSQL external port",
+    name: "dokploy_project",
+    description: "项目管理：创建、查看、更新、删除项目",
     inputSchema: {
       type: "object",
       properties: {
-        postgresId: { type: "string", description: "PostgreSQL ID" },
-        externalPort: { type: ["number", "null"] as any, description: "External port number or null" },
+        action: { type: "string", enum: ["create", "get", "list", "update", "delete"], description: "操作类型" },
+        projectId: { type: "string", description: "项目ID（get/update/delete时需要）" },
+        name: { type: "string", description: "项目名称（create/update时需要）" },
+        description: { type: "string", description: "项目描述" },
       },
-      required: ["postgresId", "externalPort"],
+      required: ["action"],
     },
-    handler: (args) => client.post("/postgres.saveExternalPort", args),
   },
   {
-    name: "postgres_reload",
-    description: "Reload a PostgreSQL database",
+    name: "dokploy_application",
+    description: "应用管理：部署、启动、停止、配置应用",
     inputSchema: {
       type: "object",
       properties: {
-        postgresId: { type: "string", description: "PostgreSQL ID" },
-        appName: { type: "string", description: "App name" },
+        action: { type: "string", enum: ["create", "get", "list", "update", "delete", "deploy", "start", "stop", "reload"], description: "操作类型" },
+        applicationId: { type: "string", description: "应用ID" },
+        name: { type: "string", description: "应用名称" },
+        environmentId: { type: "string", description: "环境ID" },
       },
-      required: ["postgresId", "appName"],
+      required: ["action"],
     },
-    handler: (args) => client.post("/postgres.reload", args),
   },
   {
-    name: "postgres_rebuild",
-    description: "Rebuild a PostgreSQL database",
-    inputSchema: { type: "object", properties: { postgresId: { type: "string", description: "PostgreSQL ID" } }, required: ["postgresId"] },
-    handler: (args) => client.post("/postgres.rebuild", { postgresId: args.postgresId }),
-  },
-  {
-    name: "postgres_change_status",
-    description: "Change PostgreSQL status",
+    name: "dokploy_database",
+    description: "数据库管理：创建和管理 PostgreSQL、MySQL、MariaDB、MongoDB、Redis",
     inputSchema: {
       type: "object",
       properties: {
-        postgresId: { type: "string", description: "PostgreSQL ID" },
-        applicationStatus: { type: "string", enum: ["idle", "running", "done", "error"], description: "New status" },
+        engine: { type: "string", enum: ["postgres", "mysql", "mariadb", "mongo", "redis"], description: "数据库引擎" },
+        action: { type: "string", enum: ["create", "get", "list", "update", "delete", "deploy", "start", "stop"], description: "操作类型" },
+        databaseId: { type: "string", description: "数据库ID" },
+        name: { type: "string", description: "服务名称" },
+        appName: { type: "string", description: "应用名称" },
+        environmentId: { type: "string", description: "环境ID" },
+        databaseName: { type: "string", description: "数据库名" },
+        databaseUser: { type: "string", description: "数据库用户" },
+        databasePassword: { type: "string", description: "数据库密码" },
       },
-      required: ["postgresId", "applicationStatus"],
+      required: ["engine", "action"],
     },
-    handler: (args) => client.post("/postgres.changeStatus", args),
   },
-
   {
-    name: "mysql_create",
-    description: "Create a MySQL database",
+    name: "dokploy_compose",
+    description: "Docker Compose：管理多容器应用",
     inputSchema: {
       type: "object",
       properties: {
-        name: { type: "string", description: "Database service name" },
-        appName: { type: "string", description: "App name" },
-        databaseName: { type: "string", description: "Database name" },
-        databaseUser: { type: "string", description: "Database user" },
-        databasePassword: { type: "string", description: "Database password" },
-        databaseRootPassword: { type: "string", description: "Root password" },
-        environmentId: { type: "string", description: "Environment ID" },
-        description: { type: "string", description: "Optional description" },
-        dockerImage: { type: "string", description: "Docker image" },
-        serverId: { type: "string", description: "Server ID" },
-      },
-      required: ["name", "appName", "databaseName", "databaseUser", "databasePassword", "databaseRootPassword", "environmentId"],
-    },
-    handler: (args) => client.post("/mysql.create", args),
-  },
-  {
-    name: "mysql_one",
-    description: "Get a MySQL database by ID",
-    inputSchema: { type: "object", properties: { mysqlId: { type: "string", description: "MySQL ID" } }, required: ["mysqlId"] },
-    handler: (args) => client.get("/mysql.one", { mysqlId: args.mysqlId }),
-  },
-  {
-    name: "mysql_update",
-    description: "Update a MySQL database",
-    inputSchema: {
-      type: "object",
-      properties: {
-        mysqlId: { type: "string", description: "MySQL ID" },
-        name: { type: "string", description: "Database service name" },
-        appName: { type: "string", description: "App name" },
-        description: { type: "string", description: "Description" },
-        databaseName: { type: "string", description: "Database name" },
-        databaseUser: { type: "string", description: "Database user" },
-        databasePassword: { type: "string", description: "Database password" },
-        databaseRootPassword: { type: "string", description: "Root password" },
-        dockerImage: { type: "string", description: "Docker image" },
-        command: { type: "string", description: "Command" },
-        env: { type: "string", description: "Environment variables" },
-        memoryReservation: { type: "string", description: "Memory reservation" },
-        memoryLimit: { type: "string", description: "Memory limit" },
-        cpuReservation: { type: "string", description: "CPU reservation" },
-        cpuLimit: { type: "string", description: "CPU limit" },
-        externalPort: { type: "number", description: "External port" },
-        applicationStatus: { type: "string", enum: ["idle", "running", "done", "error"], description: "Application status" },
-      },
-      required: ["mysqlId"],
-    },
-    handler: (args) => client.post("/mysql.update", args),
-  },
-  {
-    name: "mysql_remove",
-    description: "Remove a MySQL database",
-    inputSchema: { type: "object", properties: { mysqlId: { type: "string", description: "MySQL ID" } }, required: ["mysqlId"] },
-    handler: (args) => client.post("/mysql.remove", { mysqlId: args.mysqlId }),
-  },
-  {
-    name: "mysql_deploy",
-    description: "Deploy a MySQL database",
-    inputSchema: { type: "object", properties: { mysqlId: { type: "string", description: "MySQL ID" } }, required: ["mysqlId"] },
-    handler: (args) => client.post("/mysql.deploy", { mysqlId: args.mysqlId }),
-  },
-  {
-    name: "mysql_start",
-    description: "Start a MySQL database",
-    inputSchema: { type: "object", properties: { mysqlId: { type: "string", description: "MySQL ID" } }, required: ["mysqlId"] },
-    handler: (args) => client.post("/mysql.start", { mysqlId: args.mysqlId }),
-  },
-  {
-    name: "mysql_stop",
-    description: "Stop a MySQL database",
-    inputSchema: { type: "object", properties: { mysqlId: { type: "string", description: "MySQL ID" } }, required: ["mysqlId"] },
-    handler: (args) => client.post("/mysql.stop", { mysqlId: args.mysqlId }),
-  },
-  {
-    name: "mysql_save_environment",
-    description: "Save MySQL environment variables",
-    inputSchema: { type: "object", properties: { mysqlId: { type: "string", description: "MySQL ID" }, env: { type: "string", description: "Environment variables" } }, required: ["mysqlId"] },
-    handler: (args) => client.post("/mysql.saveEnvironment", args),
-  },
-  {
-    name: "mysql_save_external_port",
-    description: "Save MySQL external port",
-    inputSchema: { type: "object", properties: { mysqlId: { type: "string", description: "MySQL ID" }, externalPort: { type: ["number", "null"] as any, description: "External port number or null" } }, required: ["mysqlId", "externalPort"] },
-    handler: (args) => client.post("/mysql.saveExternalPort", args),
-  },
-  {
-    name: "mysql_reload",
-    description: "Reload a MySQL database",
-    inputSchema: { type: "object", properties: { mysqlId: { type: "string", description: "MySQL ID" }, appName: { type: "string", description: "App name" } }, required: ["mysqlId", "appName"] },
-    handler: (args) => client.post("/mysql.reload", args),
-  },
-  {
-    name: "mysql_rebuild",
-    description: "Rebuild a MySQL database",
-    inputSchema: { type: "object", properties: { mysqlId: { type: "string", description: "MySQL ID" } }, required: ["mysqlId"] },
-    handler: (args) => client.post("/mysql.rebuild", { mysqlId: args.mysqlId }),
-  },
-  {
-    name: "mysql_change_status",
-    description: "Change MySQL status",
-    inputSchema: { type: "object", properties: { mysqlId: { type: "string", description: "MySQL ID" }, applicationStatus: { type: "string", enum: ["idle", "running", "done", "error"], description: "New status" } }, required: ["mysqlId", "applicationStatus"] },
-    handler: (args) => client.post("/mysql.changeStatus", args),
-  },
-
-  {
-    name: "mariadb_create",
-    description: "Create a MariaDB database",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: { type: "string", description: "Database service name" },
-        appName: { type: "string", description: "App name" },
-        databaseName: { type: "string", description: "Database name" },
-        databaseUser: { type: "string", description: "Database user" },
-        databasePassword: { type: "string", description: "Database password" },
-        databaseRootPassword: { type: "string", description: "Root password" },
-        environmentId: { type: "string", description: "Environment ID" },
-        description: { type: "string", description: "Optional description" },
-        dockerImage: { type: "string", description: "Docker image" },
-        serverId: { type: "string", description: "Server ID" },
-      },
-      required: ["name", "databaseName", "databaseUser", "databasePassword", "environmentId"],
-    },
-    handler: (args) => client.post("/mariadb.create", args),
-  },
-  {
-    name: "mariadb_one",
-    description: "Get a MariaDB database by ID",
-    inputSchema: { type: "object", properties: { mariadbId: { type: "string", description: "MariaDB ID" } }, required: ["mariadbId"] },
-    handler: (args) => client.get("/mariadb.one", { mariadbId: args.mariadbId }),
-  },
-  {
-    name: "mariadb_update",
-    description: "Update a MariaDB database",
-    inputSchema: {
-      type: "object",
-      properties: {
-        mariadbId: { type: "string", description: "MariaDB ID" },
-        name: { type: "string", description: "Database service name" },
-        appName: { type: "string", description: "App name" },
-        description: { type: "string", description: "Description" },
-        databaseName: { type: "string", description: "Database name" },
-        databaseUser: { type: "string", description: "Database user" },
-        databasePassword: { type: "string", description: "Database password" },
-        databaseRootPassword: { type: "string", description: "Root password" },
-        dockerImage: { type: "string", description: "Docker image" },
-        command: { type: "string", description: "Command" },
-        env: { type: "string", description: "Environment variables" },
-        memoryReservation: { type: "string", description: "Memory reservation" },
-        memoryLimit: { type: "string", description: "Memory limit" },
-        cpuReservation: { type: "string", description: "CPU reservation" },
-        cpuLimit: { type: "string", description: "CPU limit" },
-        externalPort: { type: "number", description: "External port" },
-        applicationStatus: { type: "string", enum: ["idle", "running", "done", "error"], description: "Application status" },
-        environmentId: { type: "string", description: "Environment ID" },
-      },
-      required: ["mariadbId"],
-    },
-    handler: (args) => client.post("/mariadb.update", args),
-  },
-  {
-    name: "mariadb_remove",
-    description: "Remove a MariaDB database",
-    inputSchema: { type: "object", properties: { mariadbId: { type: "string", description: "MariaDB ID" } }, required: ["mariadbId"] },
-    handler: (args) => client.post("/mariadb.remove", { mariadbId: args.mariadbId }),
-  },
-  {
-    name: "mariadb_deploy",
-    description: "Deploy a MariaDB database",
-    inputSchema: { type: "object", properties: { mariadbId: { type: "string", description: "MariaDB ID" } }, required: ["mariadbId"] },
-    handler: (args) => client.post("/mariadb.deploy", { mariadbId: args.mariadbId }),
-  },
-  {
-    name: "mariadb_start",
-    description: "Start a MariaDB database",
-    inputSchema: { type: "object", properties: { mariadbId: { type: "string", description: "MariaDB ID" } }, required: ["mariadbId"] },
-    handler: (args) => client.post("/mariadb.start", { mariadbId: args.mariadbId }),
-  },
-  {
-    name: "mariadb_stop",
-    description: "Stop a MariaDB database",
-    inputSchema: { type: "object", properties: { mariadbId: { type: "string", description: "MariaDB ID" } }, required: ["mariadbId"] },
-    handler: (args) => client.post("/mariadb.stop", { mariadbId: args.mariadbId }),
-  },
-  {
-    name: "mariadb_save_environment",
-    description: "Save MariaDB environment variables",
-    inputSchema: { type: "object", properties: { mariadbId: { type: "string", description: "MariaDB ID" }, env: { type: "string", description: "Environment variables" } }, required: ["mariadbId"] },
-    handler: (args) => client.post("/mariadb.saveEnvironment", args),
-  },
-  {
-    name: "mariadb_save_external_port",
-    description: "Save MariaDB external port",
-    inputSchema: { type: "object", properties: { mariadbId: { type: "string", description: "MariaDB ID" }, externalPort: { type: ["number", "null"] as any, description: "External port or null" } }, required: ["mariadbId", "externalPort"] },
-    handler: (args) => client.post("/mariadb.saveExternalPort", args),
-  },
-  {
-    name: "mariadb_reload",
-    description: "Reload a MariaDB database",
-    inputSchema: { type: "object", properties: { mariadbId: { type: "string", description: "MariaDB ID" }, appName: { type: "string", description: "App name" } }, required: ["mariadbId", "appName"] },
-    handler: (args) => client.post("/mariadb.reload", args),
-  },
-  {
-    name: "mariadb_rebuild",
-    description: "Rebuild a MariaDB database",
-    inputSchema: { type: "object", properties: { mariadbId: { type: "string", description: "MariaDB ID" } }, required: ["mariadbId"] },
-    handler: (args) => client.post("/mariadb.rebuild", { mariadbId: args.mariadbId }),
-  },
-  {
-    name: "mariadb_change_status",
-    description: "Change MariaDB status",
-    inputSchema: { type: "object", properties: { mariadbId: { type: "string", description: "MariaDB ID" }, applicationStatus: { type: "string", enum: ["idle", "running", "done", "error"], description: "New status" } }, required: ["mariadbId", "applicationStatus"] },
-    handler: (args) => client.post("/mariadb.changeStatus", args),
-  },
-
-  {
-    name: "mongo_create",
-    description: "Create a MongoDB database",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: { type: "string", description: "Database service name" },
-        appName: { type: "string", description: "App name" },
-        databaseName: { type: "string", description: "Database name" },
-        databaseUser: { type: "string", description: "Database user" },
-        databasePassword: { type: "string", description: "Database password" },
-        environmentId: { type: "string", description: "Environment ID" },
-        description: { type: "string", description: "Optional description" },
-        dockerImage: { type: "string", description: "Docker image" },
-        serverId: { type: "string", description: "Server ID" },
-      },
-      required: ["name", "appName", "databaseName", "databaseUser", "databasePassword", "environmentId"],
-    },
-    handler: (args) => client.post("/mongo.create", args),
-  },
-  {
-    name: "mongo_one",
-    description: "Get a MongoDB database by ID",
-    inputSchema: { type: "object", properties: { mongoId: { type: "string", description: "MongoDB ID" } }, required: ["mongoId"] },
-    handler: (args) => client.get("/mongo.one", { mongoId: args.mongoId }),
-  },
-  {
-    name: "mongo_update",
-    description: "Update a MongoDB database",
-    inputSchema: {
-      type: "object",
-      properties: {
-        mongoId: { type: "string", description: "MongoDB ID" },
-        name: { type: "string", description: "Database service name" },
-        appName: { type: "string", description: "App name" },
-        description: { type: "string", description: "Description" },
-        databaseName: { type: "string", description: "Database name" },
-        databaseUser: { type: "string", description: "Database user" },
-        databasePassword: { type: "string", description: "Database password" },
-        dockerImage: { type: "string", description: "Docker image" },
-        command: { type: "string", description: "Command" },
-        env: { type: "string", description: "Environment variables" },
-        memoryReservation: { type: "string", description: "Memory reservation" },
-        memoryLimit: { type: "string", description: "Memory limit" },
-        cpuReservation: { type: "string", description: "CPU reservation" },
-        cpuLimit: { type: "string", description: "CPU limit" },
-        externalPort: { type: "number", description: "External port" },
-        applicationStatus: { type: "string", enum: ["idle", "running", "done", "error"], description: "Application status" },
-      },
-      required: ["mongoId"],
-    },
-    handler: (args) => client.post("/mongo.update", args),
-  },
-  {
-    name: "mongo_remove",
-    description: "Remove a MongoDB database",
-    inputSchema: { type: "object", properties: { mongoId: { type: "string", description: "MongoDB ID" } }, required: ["mongoId"] },
-    handler: (args) => client.post("/mongo.remove", { mongoId: args.mongoId }),
-  },
-  {
-    name: "mongo_deploy",
-    description: "Deploy a MongoDB database",
-    inputSchema: { type: "object", properties: { mongoId: { type: "string", description: "MongoDB ID" } }, required: ["mongoId"] },
-    handler: (args) => client.post("/mongo.deploy", { mongoId: args.mongoId }),
-  },
-  {
-    name: "mongo_start",
-    description: "Start a MongoDB database",
-    inputSchema: { type: "object", properties: { mongoId: { type: "string", description: "MongoDB ID" } }, required: ["mongoId"] },
-    handler: (args) => client.post("/mongo.start", { mongoId: args.mongoId }),
-  },
-  {
-    name: "mongo_stop",
-    description: "Stop a MongoDB database",
-    inputSchema: { type: "object", properties: { mongoId: { type: "string", description: "MongoDB ID" } }, required: ["mongoId"] },
-    handler: (args) => client.post("/mongo.stop", { mongoId: args.mongoId }),
-  },
-  {
-    name: "mongo_save_environment",
-    description: "Save MongoDB environment variables",
-    inputSchema: { type: "object", properties: { mongoId: { type: "string", description: "MongoDB ID" }, env: { type: "string", description: "Environment variables" } }, required: ["mongoId"] },
-    handler: (args) => client.post("/mongo.saveEnvironment", args),
-  },
-  {
-    name: "mongo_save_external_port",
-    description: "Save MongoDB external port",
-    inputSchema: { type: "object", properties: { mongoId: { type: "string", description: "MongoDB ID" }, externalPort: { type: ["number", "null"] as any, description: "External port or null" } }, required: ["mongoId", "externalPort"] },
-    handler: (args) => client.post("/mongo.saveExternalPort", args),
-  },
-  {
-    name: "mongo_reload",
-    description: "Reload a MongoDB database",
-    inputSchema: { type: "object", properties: { mongoId: { type: "string", description: "MongoDB ID" }, appName: { type: "string", description: "App name" } }, required: ["mongoId", "appName"] },
-    handler: (args) => client.post("/mongo.reload", args),
-  },
-  {
-    name: "mongo_rebuild",
-    description: "Rebuild a MongoDB database",
-    inputSchema: { type: "object", properties: { mongoId: { type: "string", description: "MongoDB ID" } }, required: ["mongoId"] },
-    handler: (args) => client.post("/mongo.rebuild", { mongoId: args.mongoId }),
-  },
-  {
-    name: "mongo_change_status",
-    description: "Change MongoDB status",
-    inputSchema: { type: "object", properties: { mongoId: { type: "string", description: "MongoDB ID" }, applicationStatus: { type: "string", enum: ["idle", "running", "done", "error"], description: "New status" } }, required: ["mongoId", "applicationStatus"] },
-    handler: (args) => client.post("/mongo.changeStatus", args),
-  },
-
-  {
-    name: "redis_create",
-    description: "Create a Redis database",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: { type: "string", description: "Database service name" },
-        appName: { type: "string", description: "App name" },
-        databasePassword: { type: "string", description: "Database password" },
-        environmentId: { type: "string", description: "Environment ID" },
-        description: { type: "string", description: "Optional description" },
-        dockerImage: { type: "string", description: "Docker image" },
-        serverId: { type: "string", description: "Server ID" },
-      },
-      required: ["name", "appName", "databasePassword", "environmentId"],
-    },
-    handler: (args) => client.post("/redis.create", args),
-  },
-  {
-    name: "redis_one",
-    description: "Get a Redis database by ID",
-    inputSchema: { type: "object", properties: { redisId: { type: "string", description: "Redis ID" } }, required: ["redisId"] },
-    handler: (args) => client.get("/redis.one", { redisId: args.redisId }),
-  },
-  {
-    name: "redis_update",
-    description: "Update a Redis database",
-    inputSchema: {
-      type: "object",
-      properties: {
-        redisId: { type: "string", description: "Redis ID" },
-        name: { type: "string", description: "Database service name" },
-        appName: { type: "string", description: "App name" },
-        description: { type: "string", description: "Description" },
-        databasePassword: { type: "string", description: "Database password" },
-        dockerImage: { type: "string", description: "Docker image" },
-        command: { type: "string", description: "Command" },
-        env: { type: "string", description: "Environment variables" },
-        memoryReservation: { type: "string", description: "Memory reservation" },
-        memoryLimit: { type: "string", description: "Memory limit" },
-        cpuReservation: { type: "string", description: "CPU reservation" },
-        cpuLimit: { type: "string", description: "CPU limit" },
-        externalPort: { type: "number", description: "External port" },
-        applicationStatus: { type: "string", enum: ["idle", "running", "done", "error"], description: "Application status" },
-      },
-      required: ["redisId"],
-    },
-    handler: (args) => client.post("/redis.update", args),
-  },
-  {
-    name: "redis_remove",
-    description: "Remove a Redis database",
-    inputSchema: { type: "object", properties: { redisId: { type: "string", description: "Redis ID" } }, required: ["redisId"] },
-    handler: (args) => client.post("/redis.remove", { redisId: args.redisId }),
-  },
-  {
-    name: "redis_deploy",
-    description: "Deploy a Redis database",
-    inputSchema: { type: "object", properties: { redisId: { type: "string", description: "Redis ID" } }, required: ["redisId"] },
-    handler: (args) => client.post("/redis.deploy", { redisId: args.redisId }),
-  },
-  {
-    name: "redis_start",
-    description: "Start a Redis database",
-    inputSchema: { type: "object", properties: { redisId: { type: "string", description: "Redis ID" } }, required: ["redisId"] },
-    handler: (args) => client.post("/redis.start", { redisId: args.redisId }),
-  },
-  {
-    name: "redis_stop",
-    description: "Stop a Redis database",
-    inputSchema: { type: "object", properties: { redisId: { type: "string", description: "Redis ID" } }, required: ["redisId"] },
-    handler: (args) => client.post("/redis.stop", { redisId: args.redisId }),
-  },
-  {
-    name: "redis_save_environment",
-    description: "Save Redis environment variables",
-    inputSchema: { type: "object", properties: { redisId: { type: "string", description: "Redis ID" }, env: { type: "string", description: "Environment variables" } }, required: ["redisId"] },
-    handler: (args) => client.post("/redis.saveEnvironment", args),
-  },
-  {
-    name: "redis_save_external_port",
-    description: "Save Redis external port",
-    inputSchema: { type: "object", properties: { redisId: { type: "string", description: "Redis ID" }, externalPort: { type: ["number", "null"] as any, description: "External port or null" } }, required: ["redisId", "externalPort"] },
-    handler: (args) => client.post("/redis.saveExternalPort", args),
-  },
-  {
-    name: "redis_reload",
-    description: "Reload a Redis database",
-    inputSchema: { type: "object", properties: { redisId: { type: "string", description: "Redis ID" }, appName: { type: "string", description: "App name" } }, required: ["redisId", "appName"] },
-    handler: (args) => client.post("/redis.reload", args),
-  },
-  {
-    name: "redis_rebuild",
-    description: "Rebuild a Redis database",
-    inputSchema: { type: "object", properties: { redisId: { type: "string", description: "Redis ID" } }, required: ["redisId"] },
-    handler: (args) => client.post("/redis.rebuild", { redisId: args.redisId }),
-  },
-  {
-    name: "redis_change_status",
-    description: "Change Redis status",
-    inputSchema: { type: "object", properties: { redisId: { type: "string", description: "Redis ID" }, applicationStatus: { type: "string", enum: ["idle", "running", "done", "error"], description: "New status" } }, required: ["redisId", "applicationStatus"] },
-    handler: (args) => client.post("/redis.changeStatus", args),
-  },
-
-  {
-    name: "compose_create",
-    description: "Create a compose service",
-    inputSchema: {
-      type: "object",
-      properties: {
-        name: { type: "string", description: "Compose name" },
-        environmentId: { type: "string", description: "Environment ID" },
-        appName: { type: "string", description: "App name" },
-        description: { type: "string", description: "Description" },
-        composeType: { type: "string", enum: ["docker-compose", "stack"], description: "Compose type" },
-        composeFile: { type: "string", description: "Compose file content" },
-        serverId: { type: "string", description: "Server ID" },
-      },
-      required: ["name", "environmentId"],
-    },
-    handler: (args) => client.post("/compose.create", args),
-  },
-  {
-    name: "compose_one",
-    description: "Get a compose service by ID",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" } }, required: ["composeId"] },
-    handler: (args) => client.get("/compose.one", { composeId: args.composeId }),
-  },
-  {
-    name: "compose_update",
-    description: "Update a compose service",
-    inputSchema: {
-      type: "object",
-      properties: {
+        action: { type: "string", enum: ["create", "get", "list", "update", "delete", "deploy", "start", "stop"], description: "操作类型" },
         composeId: { type: "string", description: "Compose ID" },
-        name: { type: "string", description: "Compose name" },
-        appName: { type: "string", description: "App name" },
-        description: { type: "string", description: "Description" },
-        env: { type: "string", description: "Environment variables" },
-        composeFile: { type: "string", description: "Compose file content" },
-        refreshToken: { type: "string", description: "Refresh token" },
-        sourceType: { type: "string", enum: ["git", "github", "gitlab", "bitbucket", "gitea", "raw"], description: "Source type" },
-        composeType: { type: "string", enum: ["docker-compose", "stack"], description: "Compose type" },
-        repository: { type: "string", description: "Repository URL" },
-        owner: { type: "string", description: "Repository owner" },
-        branch: { type: "string", description: "Branch" },
-        autoDeploy: { type: "boolean", description: "Enable auto deploy" },
-        command: { type: "string", description: "Command" },
-        enableSubmodules: { type: "boolean", description: "Enable submodules" },
-        composePath: { type: "string", description: "Compose path" },
-        suffix: { type: "string", description: "Deployment suffix" },
-        randomize: { type: "boolean", description: "Randomize deployment" },
-        isolatedDeployment: { type: "boolean", description: "Isolated deployment" },
-        isolatedDeploymentsVolume: { type: "boolean", description: "Isolated volume" },
-        triggerType: { type: "string", enum: ["push", "tag"], description: "Trigger type" },
-        composeStatus: { type: "string", enum: ["idle", "running", "done", "error"], description: "Compose status" },
-        environmentId: { type: "string", description: "Environment ID" },
-        watchPaths: { type: "array", items: { type: "string" }, description: "Watch paths" },
-        githubId: { type: "string", description: "GitHub integration ID" },
-        gitlabId: { type: "string", description: "GitLab integration ID" },
-        bitbucketId: { type: "string", description: "Bitbucket integration ID" },
-        giteaId: { type: "string", description: "Gitea integration ID" },
+        name: { type: "string", description: "Compose 名称" },
+        environmentId: { type: "string", description: "环境ID" },
+        composeFile: { type: "string", description: "docker-compose.yml 内容" },
       },
-      required: ["composeId"],
+      required: ["action"],
     },
-    handler: (args) => client.post("/compose.update", args),
   },
   {
-    name: "compose_delete",
-    description: "Delete a compose service",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" }, deleteVolumes: { type: "boolean", description: "Delete associated volumes" } }, required: ["composeId", "deleteVolumes"] },
-    handler: (args) => client.post("/compose.delete", args),
-  },
-  {
-    name: "compose_deploy",
-    description: "Deploy a compose service",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" }, title: { type: "string", description: "Deployment title" }, description: { type: "string", description: "Deployment description" } }, required: ["composeId"] },
-    handler: (args) => client.post("/compose.deploy", args),
-  },
-  {
-    name: "compose_redeploy",
-    description: "Redeploy a compose service",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" }, title: { type: "string", description: "Deployment title" }, description: { type: "string", description: "Deployment description" } }, required: ["composeId"] },
-    handler: (args) => client.post("/compose.redeploy", args),
-  },
-  {
-    name: "compose_start",
-    description: "Start a compose service",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" } }, required: ["composeId"] },
-    handler: (args) => client.post("/compose.start", { composeId: args.composeId }),
-  },
-  {
-    name: "compose_stop",
-    description: "Stop a compose service",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" } }, required: ["composeId"] },
-    handler: (args) => client.post("/compose.stop", { composeId: args.composeId }),
-  },
-  {
-    name: "compose_clean_queues",
-    description: "Clean compose queues",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" } }, required: ["composeId"] },
-    handler: (args) => client.post("/compose.cleanQueues", { composeId: args.composeId }),
-  },
-  {
-    name: "compose_kill_build",
-    description: "Kill a compose build",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" } }, required: ["composeId"] },
-    handler: (args) => client.post("/compose.killBuild", { composeId: args.composeId }),
-  },
-  {
-    name: "compose_load_services",
-    description: "Load compose services",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" }, type: { type: "string", enum: ["fetch", "cache"], description: "Load type" } }, required: ["composeId"] },
-    handler: (args) => client.get("/compose.loadServices", args),
-  },
-  {
-    name: "compose_load_mounts_by_service",
-    description: "Load compose mounts by service",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" }, serviceName: { type: "string", description: "Service name" } }, required: ["composeId", "serviceName"] },
-    handler: (args) => client.get("/compose.loadMountsByService", args),
-  },
-  {
-    name: "compose_fetch_source_type",
-    description: "Fetch compose source type",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" } }, required: ["composeId"] },
-    handler: (args) => client.get("/compose.fetchSourceType", { composeId: args.composeId }),
-  },
-  {
-    name: "compose_randomize_compose",
-    description: "Randomize a compose deployment",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" }, suffix: { type: "string", description: "Optional suffix" } }, required: ["composeId"] },
-    handler: (args) => client.post("/compose.randomizeCompose", args),
-  },
-  {
-    name: "compose_isolated_deployment",
-    description: "Create isolated compose deployment",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" }, suffix: { type: "string", description: "Optional suffix" } }, required: ["composeId"] },
-    handler: (args) => client.post("/compose.isolatedDeployment", args),
-  },
-  {
-    name: "compose_get_converted_compose",
-    description: "Get converted compose file",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" } }, required: ["composeId"] },
-    handler: (args) => client.get("/compose.getConverted", { composeId: args.composeId }),
-  },
-  {
-    name: "compose_get_default_command",
-    description: "Get compose default command",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" } }, required: ["composeId"] },
-    handler: (args) => client.get("/compose.getDefaultCommand", { composeId: args.composeId }),
-  },
-
-  {
-    name: "domain_create",
-    description: "Create a domain",
+    name: "dokploy_domain",
+    description: "域名与网络：配置域名、SSL证书、端口、重定向",
     inputSchema: {
       type: "object",
       properties: {
-        host: { type: "string", description: "Domain host" },
-        https: { type: "boolean", description: "Enable HTTPS" },
-        certificateType: { type: "string", enum: ["letsencrypt", "none", "custom"], description: "Certificate type" },
-        stripPath: { type: "boolean", description: "Strip path prefix" },
-        applicationId: { type: "string", description: "Application ID" },
+        action: { type: "string", enum: ["create_domain", "get_domain", "delete_domain", "create_port", "create_redirect", "validate"], description: "操作类型" },
+        host: { type: "string", description: "域名" },
+        applicationId: { type: "string", description: "应用ID" },
         composeId: { type: "string", description: "Compose ID" },
-        previewDeploymentId: { type: "string", description: "Preview deployment ID" },
-        serviceName: { type: "string", description: "Compose service name" },
-        port: { type: "number", description: "Service port" },
-        path: { type: "string", description: "Public path" },
-        internalPath: { type: "string", description: "Internal path" },
-        customCertResolver: { type: "string", description: "Custom certificate resolver" },
+        https: { type: "boolean", description: "启用HTTPS" },
+        certificateType: { type: "string", enum: ["letsencrypt", "none", "custom"], description: "证书类型" },
       },
-      required: ["host", "https", "certificateType", "stripPath"],
+      required: ["action"],
     },
-    handler: (args) => client.post("/domain.create", args),
   },
   {
-    name: "domain_one",
-    description: "Get a domain by ID",
-    inputSchema: { type: "object", properties: { domainId: { type: "string", description: "Domain ID" } }, required: ["domainId"] },
-    handler: (args) => client.get("/domain.one", { domainId: args.domainId }),
-  },
-  {
-    name: "domain_update",
-    description: "Update a domain",
-    inputSchema: { type: "object", properties: { domainId: { type: "string", description: "Domain ID" }, host: { type: "string", description: "Domain host" }, https: { type: "boolean", description: "Enable HTTPS" }, certificateType: { type: "string", enum: ["letsencrypt", "none", "custom"], description: "Certificate type" }, stripPath: { type: "boolean", description: "Strip path prefix" }, serviceName: { type: "string", description: "Service name" }, port: { type: "number", description: "Service port" }, path: { type: "string", description: "Path" }, internalPath: { type: "string", description: "Internal path" }, customCertResolver: { type: "string", description: "Custom certificate resolver" } }, required: ["domainId", "host", "https", "certificateType", "stripPath"] },
-    handler: (args) => client.post("/domain.update", args),
-  },
-  {
-    name: "domain_delete",
-    description: "Delete a domain",
-    inputSchema: { type: "object", properties: { domainId: { type: "string", description: "Domain ID" } }, required: ["domainId"] },
-    handler: (args) => client.post("/domain.delete", { domainId: args.domainId }),
-  },
-  {
-    name: "domain_by_application_id",
-    description: "Get domains by application ID",
-    inputSchema: { type: "object", properties: { applicationId: { type: "string", description: "Application ID" } }, required: ["applicationId"] },
-    handler: (args) => client.get("/domain.byApplicationId", { applicationId: args.applicationId }),
-  },
-  {
-    name: "domain_by_compose_id",
-    description: "Get domains by compose ID",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" } }, required: ["composeId"] },
-    handler: (args) => client.get("/domain.byComposeId", { composeId: args.composeId }),
-  },
-  {
-    name: "domain_validate_domain",
-    description: "Validate a domain configuration",
-    inputSchema: { type: "object", properties: { domain: { type: "string", description: "Domain name" }, serverIp: { type: "string", description: "Optional server IP" } }, required: ["domain"] },
-    handler: (args) => client.get("/domain.validateDomain", args),
-  },
-  {
-    name: "domain_generate_domain",
-    description: "Generate a suggested domain",
-    inputSchema: { type: "object", properties: { appName: { type: "string", description: "Application name" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["appName"] },
-    handler: (args) => client.get("/domain.generateDomain", args),
-  },
-  {
-    name: "domain_can_generate_traefik_me_domains",
-    description: "Check Traefik.me generation availability",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Server ID" } }, required: ["serverId"] },
-    handler: (args) => client.get("/domain.canGenerateTraefikMeDomains", { serverId: args.serverId }),
-  },
-
-  {
-    name: "deployment_all",
-    description: "Get all deployments for an application",
-    inputSchema: { type: "object", properties: { applicationId: { type: "string", description: "Application ID" } }, required: ["applicationId"] },
-    handler: (args) => client.get("/deployment.all", { applicationId: args.applicationId }),
-  },
-  {
-    name: "deployment_all_by_compose",
-    description: "Get all deployments for a compose service",
-    inputSchema: { type: "object", properties: { composeId: { type: "string", description: "Compose ID" } }, required: ["composeId"] },
-    handler: (args) => client.get("/deployment.allByCompose", { composeId: args.composeId }),
-  },
-  {
-    name: "deployment_all_by_server",
-    description: "Get all deployments for a server",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Server ID" } }, required: ["serverId"] },
-    handler: (args) => client.get("/deployment.allByServer", { serverId: args.serverId }),
-  },
-  {
-    name: "deployment_all_by_type",
-    description: "Get all deployments by resource type",
-    inputSchema: { type: "object", properties: { id: { type: "string", description: "Resource ID" }, type: { type: "string", enum: ["application", "compose", "server", "schedule", "previewDeployment", "backup", "volumeBackup"], description: "Resource type" } }, required: ["id", "type"] },
-    handler: (args) => client.get("/deployment.allByType", args),
-  },
-  {
-    name: "deployment_kill_process",
-    description: "Kill a deployment process",
-    inputSchema: { type: "object", properties: { deploymentId: { type: "string", description: "Deployment ID" } }, required: ["deploymentId"] },
-    handler: (args) => client.post("/deployment.killProcess", { deploymentId: args.deploymentId }),
-  },
-
-  {
-    name: "server_create",
-    description: "Create a server",
+    name: "dokploy_server",
+    description: "服务器管理：添加、配置、管理服务器和集群",
     inputSchema: {
       type: "object",
       properties: {
-        name: { type: "string", description: "Server name" },
-        description: { type: "string", description: "Server description" },
-        ipAddress: { type: "string", description: "IP address or hostname" },
-        port: { type: "number", description: "SSH port" },
-        username: { type: "string", description: "SSH username" },
-        sshKeyId: { type: "string", description: "SSH key ID" },
-        serverType: { type: "string", enum: ["deploy", "build"], description: "Server type" },
+        action: { type: "string", enum: ["create", "get", "list", "update", "delete", "setup", "validate"], description: "操作类型" },
+        serverId: { type: "string", description: "服务器ID" },
+        name: { type: "string", description: "服务器名称" },
+        ipAddress: { type: "string", description: "IP地址" },
+        port: { type: "number", description: "SSH端口" },
+        username: { type: "string", description: "SSH用户名" },
       },
-      required: ["name", "description", "ipAddress", "port", "username", "serverType"],
+      required: ["action"],
     },
-    handler: (args) => client.post("/server.create", args),
   },
   {
-    name: "server_one",
-    description: "Get a server by ID",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Server ID" } }, required: ["serverId"] },
-    handler: (args) => client.get("/server.one", { serverId: args.serverId }),
-  },
-  {
-    name: "server_all",
-    description: "Get all servers",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/server.all"),
-  },
-  {
-    name: "server_with_ssh_key",
-    description: "Get servers with SSH keys",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/server.withSSHKey"),
-  },
-  {
-    name: "server_setup",
-    description: "Setup a server",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Server ID" } }, required: ["serverId"] },
-    handler: (args) => client.post("/server.setup", { serverId: args.serverId }),
-  },
-  {
-    name: "server_remove",
-    description: "Remove a server",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Server ID" } }, required: ["serverId"] },
-    handler: (args) => client.post("/server.remove", { serverId: args.serverId }),
-  },
-  {
-    name: "server_update",
-    description: "Update a server",
+    name: "dokploy_docker",
+    description: "Docker 操作：查看和管理容器",
     inputSchema: {
       type: "object",
       properties: {
-        serverId: { type: "string", description: "Server ID" },
-        name: { type: "string", description: "Server name" },
-        description: { type: "string", description: "Server description" },
-        ipAddress: { type: "string", description: "IP address or hostname" },
-        port: { type: "number", description: "SSH port" },
-        username: { type: "string", description: "SSH username" },
-        sshKeyId: { type: "string", description: "SSH key ID" },
-        serverType: { type: "string", enum: ["deploy", "build"], description: "Server type" },
-        command: { type: "string", description: "Optional default command" },
+        action: { type: "string", enum: ["list_containers", "restart", "get_config", "get_logs"], description: "操作类型" },
+        containerId: { type: "string", description: "容器ID" },
+        appName: { type: "string", description: "应用名称" },
+        serverId: { type: "string", description: "服务器ID" },
       },
-      required: ["serverId", "name", "description", "ipAddress", "port", "username", "serverType"],
+      required: ["action"],
     },
-    handler: (args) => client.post("/server.update", args),
   },
   {
-    name: "server_validate",
-    description: "Validate a server connection",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Server ID" } }, required: ["serverId"] },
-    handler: (args) => client.get("/server.validate", { serverId: args.serverId }),
+    name: "dokploy_deployment",
+    description: "部署与监控：查看部署历史、回滚、监控",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["list", "get", "kill", "rollback", "monitor"], description: "操作类型" },
+        applicationId: { type: "string", description: "应用ID" },
+        deploymentId: { type: "string", description: "部署ID" },
+        rollbackId: { type: "string", description: "回滚ID" },
+      },
+      required: ["action"],
+    },
   },
   {
-    name: "server_get_server_metrics",
-    description: "Get server metrics",
-    inputSchema: { type: "object", properties: { url: { type: "string", description: "Metrics URL" }, token: { type: "string", description: "Metrics token" }, dataPoints: { type: "string", description: "Data points" } }, required: ["url", "token", "dataPoints"] },
-    handler: (args) => client.get("/server.getServerMetrics", args),
+    name: "dokploy_settings",
+    description: "系统设置：维护、清理、Traefik配置、定时任务",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["cleanup", "reload_traefik", "get_config", "update_config", "schedule"], description: "操作类型" },
+        serverId: { type: "string", description: "服务器ID" },
+        traefikConfig: { type: "string", description: "Traefik配置内容" },
+      },
+      required: ["action"],
+    },
   },
+  {
+    name: "dokploy_user",
+    description: "用户与权限：管理用户、API密钥、组织",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["list", "get", "create", "update", "delete", "assign_permissions", "create_api_key"], description: "操作类型" },
+        userId: { type: "string", description: "用户ID" },
+        email: { type: "string", description: "邮箱" },
+        password: { type: "string", description: "密码" },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "dokploy_notification",
+    description: "通知告警：配置 Slack、Telegram、Discord、邮件通知",
+    inputSchema: {
+      type: "object",
+      properties: {
+        provider: { type: "string", enum: ["slack", "telegram", "discord", "email"], description: "通知提供商" },
+        action: { type: "string", enum: ["create", "get", "list", "update", "delete", "test"], description: "操作类型" },
+        name: { type: "string", description: "通知名称" },
+        webhookUrl: { type: "string", description: "Webhook URL" },
+      },
+      required: ["provider", "action"],
+    },
+  },
+  {
+    name: "dokploy_backup",
+    description: "备份恢复：配置备份、执行备份、管理存储目的地",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["create", "get", "list", "delete", "run", "create_destination", "restore"], description: "操作类型" },
+        backupId: { type: "string", description: "备份ID" },
+        destinationId: { type: "string", description: "目的地ID" },
+        schedule: { type: "string", description: "Cron表达式" },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "dokploy_ssh",
+    description: "SSH 密钥：生成和管理 SSH 密钥",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["create", "get", "list", "delete", "generate"], description: "操作类型" },
+        sshKeyId: { type: "string", description: "SSH密钥ID" },
+        name: { type: "string", description: "密钥名称" },
+        publicKey: { type: "string", description: "公钥内容" },
+        privateKey: { type: "string", description: "私钥内容" },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "dokploy_registry",
+    description: "镜像仓库：管理 Docker 镜像仓库",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["create", "get", "list", "update", "delete", "test"], description: "操作类型" },
+        registryId: { type: "string", description: "仓库ID" },
+        name: { type: "string", description: "仓库名称" },
+        registryUrl: { type: "string", description: "仓库URL" },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "dokploy_security",
+    description: "安全认证：配置 Basic Auth、证书",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["create_auth", "get_auth", "delete_auth", "create_cert", "renew_cert"], description: "操作类型" },
+        applicationId: { type: "string", description: "应用ID" },
+        username: { type: "string", description: "用户名" },
+        password: { type: "string", description: "密码" },
+      },
+      required: ["action"],
+    },
+  },
+  {
+    name: "dokploy_discover",
+    description: "发现可用工具：列出所有分类和工作流",
+    inputSchema: {
+      type: "object",
+      properties: {
+        category: { type: "string", description: "特定分类（可选）" },
+        workflow: { type: "string", description: "特定工作流（可选）" },
+      },
+    },
+  },
+];
 
+const skill = new DokploySkill(
   {
-    name: "notification_create_slack",
-    description: "Create a Slack notification",
-    inputSchema: { type: "object", properties: { name: { type: "string", description: "Notification name" }, webhookUrl: { type: "string", description: "Webhook URL" }, channel: { type: "string", description: "Channel" }, appBuildError: { type: "boolean", description: "Notify on app build error" }, appDeploy: { type: "boolean", description: "Notify on app deploy" }, databaseBackup: { type: "boolean", description: "Notify on database backup" }, dockerCleanup: { type: "boolean", description: "Notify on Docker cleanup" }, dokployRestart: { type: "boolean", description: "Notify on Dokploy restart" }, serverThreshold: { type: "boolean", description: "Notify on server threshold" }, volumeBackup: { type: "boolean", description: "Notify on volume backup" } }, required: ["name", "webhookUrl", "channel"] },
-    handler: (args) => client.post("/notification.createSlack", args),
+    mcpClient: {
+      baseUrl: DOKPLOY_URL,
+      apiKey: DOKPLOY_API_KEY,
+    },
+    enableRollback: true,
   },
-  {
-    name: "notification_update_slack",
-    description: "Update a Slack notification",
-    inputSchema: { type: "object", properties: { notificationId: { type: "string", description: "Notification ID" }, slackId: { type: "string", description: "Slack notification ID" }, organizationId: { type: "string", description: "Organization ID" }, name: { type: "string", description: "Notification name" }, webhookUrl: { type: "string", description: "Webhook URL" }, channel: { type: "string", description: "Channel" }, appBuildError: { type: "boolean", description: "Notify on app build error" }, appDeploy: { type: "boolean", description: "Notify on app deploy" }, databaseBackup: { type: "boolean", description: "Notify on database backup" }, dockerCleanup: { type: "boolean", description: "Notify on Docker cleanup" }, dokployRestart: { type: "boolean", description: "Notify on Dokploy restart" }, serverThreshold: { type: "boolean", description: "Notify on server threshold" }, volumeBackup: { type: "boolean", description: "Notify on volume backup" } }, required: ["notificationId", "slackId"] },
-    handler: (args) => client.post("/notification.updateSlack", args),
-  },
-  {
-    name: "notification_remove",
-    description: "Remove a notification",
-    inputSchema: { type: "object", properties: { notificationId: { type: "string", description: "Notification ID" } }, required: ["notificationId"] },
-    handler: (args) => client.post("/notification.remove", { notificationId: args.notificationId }),
-  },
-  {
-    name: "notification_one",
-    description: "Get a notification by ID",
-    inputSchema: { type: "object", properties: { notificationId: { type: "string", description: "Notification ID" } }, required: ["notificationId"] },
-    handler: (args) => client.get("/notification.one", { notificationId: args.notificationId }),
-  },
-  {
-    name: "notification_all",
-    description: "Get all notifications",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/notification.all"),
-  },
-  {
-    name: "notification_test_slack_connection",
-    description: "Test Slack notification connection",
-    inputSchema: { type: "object", properties: { webhookUrl: { type: "string", description: "Webhook URL" }, channel: { type: "string", description: "Channel" } }, required: ["webhookUrl", "channel"] },
-    handler: (args) => client.post("/notification.testSlackConnection", args),
-  },
-  {
-    name: "notification_create_telegram",
-    description: "Create a Telegram notification",
-    inputSchema: { type: "object", properties: { name: { type: "string", description: "Notification name" }, botToken: { type: "string", description: "Bot token" }, chatId: { type: "string", description: "Chat ID" }, messageThreadId: { type: "string", description: "Message thread ID" }, appBuildError: { type: "boolean", description: "Notify on app build error" }, appDeploy: { type: "boolean", description: "Notify on app deploy" }, databaseBackup: { type: "boolean", description: "Notify on database backup" }, dockerCleanup: { type: "boolean", description: "Notify on Docker cleanup" }, dokployRestart: { type: "boolean", description: "Notify on Dokploy restart" }, serverThreshold: { type: "boolean", description: "Notify on server threshold" }, volumeBackup: { type: "boolean", description: "Notify on volume backup" } }, required: ["name", "botToken", "chatId"] },
-    handler: (args) => client.post("/notification.createTelegram", args),
-  },
-  {
-    name: "notification_update_telegram",
-    description: "Update a Telegram notification",
-    inputSchema: { type: "object", properties: { notificationId: { type: "string", description: "Notification ID" }, telegramId: { type: "string", description: "Telegram notification ID" }, organizationId: { type: "string", description: "Organization ID" }, name: { type: "string", description: "Notification name" }, botToken: { type: "string", description: "Bot token" }, chatId: { type: "string", description: "Chat ID" }, messageThreadId: { type: "string", description: "Message thread ID" }, appBuildError: { type: "boolean", description: "Notify on app build error" }, appDeploy: { type: "boolean", description: "Notify on app deploy" }, databaseBackup: { type: "boolean", description: "Notify on database backup" }, dockerCleanup: { type: "boolean", description: "Notify on Docker cleanup" }, dokployRestart: { type: "boolean", description: "Notify on Dokploy restart" }, serverThreshold: { type: "boolean", description: "Notify on server threshold" }, volumeBackup: { type: "boolean", description: "Notify on volume backup" } }, required: ["notificationId", "telegramId"] },
-    handler: (args) => client.post("/notification.updateTelegram", args),
-  },
-  {
-    name: "notification_test_telegram_connection",
-    description: "Test Telegram notification connection",
-    inputSchema: { type: "object", properties: { botToken: { type: "string", description: "Bot token" }, chatId: { type: "string", description: "Chat ID" }, messageThreadId: { type: "string", description: "Message thread ID" } }, required: ["botToken", "chatId"] },
-    handler: (args) => client.post("/notification.testTelegramConnection", args),
-  },
-  {
-    name: "notification_create_discord",
-    description: "Create a Discord notification",
-    inputSchema: { type: "object", properties: { name: { type: "string", description: "Notification name" }, webhookUrl: { type: "string", description: "Webhook URL" }, decoration: { type: "boolean", description: "Enable decoration" }, appBuildError: { type: "boolean", description: "Notify on app build error" }, appDeploy: { type: "boolean", description: "Notify on app deploy" }, databaseBackup: { type: "boolean", description: "Notify on database backup" }, dockerCleanup: { type: "boolean", description: "Notify on Docker cleanup" }, dokployRestart: { type: "boolean", description: "Notify on Dokploy restart" }, serverThreshold: { type: "boolean", description: "Notify on server threshold" }, volumeBackup: { type: "boolean", description: "Notify on volume backup" } }, required: ["name", "webhookUrl"] },
-    handler: (args) => client.post("/notification.createDiscord", args),
-  },
-  {
-    name: "notification_update_discord",
-    description: "Update a Discord notification",
-    inputSchema: { type: "object", properties: { notificationId: { type: "string", description: "Notification ID" }, discordId: { type: "string", description: "Discord notification ID" }, organizationId: { type: "string", description: "Organization ID" }, name: { type: "string", description: "Notification name" }, webhookUrl: { type: "string", description: "Webhook URL" }, decoration: { type: "boolean", description: "Enable decoration" }, appBuildError: { type: "boolean", description: "Notify on app build error" }, appDeploy: { type: "boolean", description: "Notify on app deploy" }, databaseBackup: { type: "boolean", description: "Notify on database backup" }, dockerCleanup: { type: "boolean", description: "Notify on Docker cleanup" }, dokployRestart: { type: "boolean", description: "Notify on Dokploy restart" }, serverThreshold: { type: "boolean", description: "Notify on server threshold" }, volumeBackup: { type: "boolean", description: "Notify on volume backup" } }, required: ["notificationId", "discordId"] },
-    handler: (args) => client.post("/notification.updateDiscord", args),
-  },
-  {
-    name: "notification_test_discord_connection",
-    description: "Test Discord notification connection",
-    inputSchema: { type: "object", properties: { webhookUrl: { type: "string", description: "Webhook URL" }, decoration: { type: "boolean", description: "Enable decoration" } }, required: ["webhookUrl"] },
-    handler: (args) => client.post("/notification.testDiscordConnection", args),
-  },
-  {
-    name: "notification_create_email",
-    description: "Create an email notification",
-    inputSchema: { type: "object", properties: { name: { type: "string", description: "Notification name" }, smtpServer: { type: "string", description: "SMTP server" }, smtpPort: { type: "number", description: "SMTP port" }, username: { type: "string", description: "SMTP username" }, password: { type: "string", description: "SMTP password" }, fromAddress: { type: "string", description: "From address" }, toAddresses: { type: "array", items: { type: "string" }, description: "Recipient addresses" }, appBuildError: { type: "boolean", description: "Notify on app build error" }, appDeploy: { type: "boolean", description: "Notify on app deploy" }, databaseBackup: { type: "boolean", description: "Notify on database backup" }, dockerCleanup: { type: "boolean", description: "Notify on Docker cleanup" }, dokployRestart: { type: "boolean", description: "Notify on Dokploy restart" }, serverThreshold: { type: "boolean", description: "Notify on server threshold" }, volumeBackup: { type: "boolean", description: "Notify on volume backup" } }, required: ["name", "smtpServer", "smtpPort", "username", "password", "fromAddress", "toAddresses"] },
-    handler: (args) => client.post("/notification.createEmail", args),
-  },
-  {
-    name: "notification_update_email",
-    description: "Update an email notification",
-    inputSchema: { type: "object", properties: { notificationId: { type: "string", description: "Notification ID" }, emailId: { type: "string", description: "Email notification ID" }, organizationId: { type: "string", description: "Organization ID" }, name: { type: "string", description: "Notification name" }, smtpServer: { type: "string", description: "SMTP server" }, smtpPort: { type: "number", description: "SMTP port" }, username: { type: "string", description: "SMTP username" }, password: { type: "string", description: "SMTP password" }, fromAddress: { type: "string", description: "From address" }, toAddresses: { type: "array", items: { type: "string" }, description: "Recipient addresses" }, appBuildError: { type: "boolean", description: "Notify on app build error" }, appDeploy: { type: "boolean", description: "Notify on app deploy" }, databaseBackup: { type: "boolean", description: "Notify on database backup" }, dockerCleanup: { type: "boolean", description: "Notify on Docker cleanup" }, dokployRestart: { type: "boolean", description: "Notify on Dokploy restart" }, serverThreshold: { type: "boolean", description: "Notify on server threshold" }, volumeBackup: { type: "boolean", description: "Notify on volume backup" } }, required: ["notificationId", "emailId"] },
-    handler: (args) => client.post("/notification.updateEmail", args),
-  },
-  {
-    name: "notification_test_email_connection",
-    description: "Test email notification connection",
-    inputSchema: { type: "object", properties: { smtpServer: { type: "string", description: "SMTP server" }, smtpPort: { type: "number", description: "SMTP port" }, username: { type: "string", description: "SMTP username" }, password: { type: "string", description: "SMTP password" }, fromAddress: { type: "string", description: "From address" }, toAddresses: { type: "array", items: { type: "string" }, description: "Recipient addresses" } }, required: ["smtpServer", "smtpPort", "username", "password", "fromAddress", "toAddresses"] },
-    handler: (args) => client.post("/notification.testEmailConnection", args),
-  },
+  async (name: string, args: any) => {
+    const tool = allToolDefinitions.find((t) => t.name === name);
+    if (!tool) {
+      return { success: false, error: `Tool not found: ${name}` };
+    }
+    try {
+      const result = await tool.handler(args);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+);
 
-  {
-    name: "user_all",
-    description: "Get all users",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/user.all"),
-  },
-  {
-    name: "user_one",
-    description: "Get a user by ID",
-    inputSchema: { type: "object", properties: { userId: { type: "string", description: "User ID" } }, required: ["userId"] },
-    handler: (args) => client.get("/user.one", { userId: args.userId }),
-  },
-  {
-    name: "user_get",
-    description: "Get current user",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/user.get"),
-  },
-  {
-    name: "user_update",
-    description: "Update a user",
-    inputSchema: { type: "object", properties: { id: { type: "string", description: "User ID" }, email: { type: "string", description: "Email" }, password: { type: "string", description: "New password" }, currentPassword: { type: "string", description: "Current password" }, name: { type: "string", description: "Name" }, image: { type: "string", description: "Image URL" }, twoFactorEnabled: { type: "boolean", description: "Two-factor enabled" } }, required: [] },
-    handler: (args) => client.post("/user.update", args),
-  },
-  {
-    name: "user_remove",
-    description: "Remove a user",
-    inputSchema: { type: "object", properties: { userId: { type: "string", description: "User ID" } }, required: ["userId"] },
-    handler: (args) => client.post("/user.remove", { userId: args.userId }),
-  },
-  {
-    name: "user_assign_permissions",
-    description: "Assign user permissions",
-    inputSchema: { type: "object", properties: { id: { type: "string", description: "User ID" }, accessedProjects: { type: "array", items: { type: "string" }, description: "Accessible projects" }, accessedEnvironments: { type: "array", items: { type: "string" }, description: "Accessible environments" }, accessedServices: { type: "array", items: { type: "string" }, description: "Accessible services" }, canCreateProjects: { type: "boolean", description: "Can create projects" }, canCreateServices: { type: "boolean", description: "Can create services" }, canDeleteProjects: { type: "boolean", description: "Can delete projects" }, canDeleteServices: { type: "boolean", description: "Can delete services" }, canAccessToDocker: { type: "boolean", description: "Can access Docker" }, canAccessToTraefikFiles: { type: "boolean", description: "Can access Traefik files" }, canAccessToAPI: { type: "boolean", description: "Can access API" }, canAccessToSSHKeys: { type: "boolean", description: "Can access SSH keys" }, canAccessToGitProviders: { type: "boolean", description: "Can access Git providers" }, canDeleteEnvironments: { type: "boolean", description: "Can delete environments" }, canCreateEnvironments: { type: "boolean", description: "Can create environments" } }, required: ["id"] },
-    handler: (args) => client.post("/user.assignPermissions", args),
-  },
-  {
-    name: "user_generate_token",
-    description: "Generate a user token",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.post("/user.generateToken"),
-  },
-  {
-    name: "user_delete_api_key",
-    description: "Delete a user API key",
-    inputSchema: { type: "object", properties: { apiKeyId: { type: "string", description: "API key ID" } }, required: ["apiKeyId"] },
-    handler: (args) => client.post("/user.deleteApiKey", { apiKeyId: args.apiKeyId }),
-  },
-  {
-    name: "user_create_api_key",
-    description: "Create a user API key",
-    inputSchema: { type: "object", properties: { name: { type: "string", description: "API key name" }, prefix: { type: "string", description: "Key prefix" }, expiresIn: { type: "number", description: "Expiration in seconds" }, metadata: { type: "object", description: "API key metadata" }, rateLimitEnabled: { type: "boolean", description: "Enable rate limiting" }, rateLimitTimeWindow: { type: "number", description: "Rate limit window" }, rateLimitMax: { type: "number", description: "Max requests" }, remaining: { type: "number", description: "Remaining requests" }, refillAmount: { type: "number", description: "Refill amount" }, refillInterval: { type: "number", description: "Refill interval" } }, required: ["name", "metadata"] },
-    handler: (args) => client.post("/user.createApiKey", args),
-  },
-  {
-    name: "user_get_invitations",
-    description: "Get user invitations",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/user.getInvitations"),
-  },
-  {
-    name: "user_send_invitation",
-    description: "Send a user invitation",
-    inputSchema: { type: "object", properties: { email: { type: "string", description: "Invitation email" } }, required: ["email"] },
-    handler: (args) => client.post("/user.sendInvitation", args),
-  },
-  {
-    name: "user_get_backups",
-    description: "Get user backups",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/user.getBackups"),
-  },
-  {
-    name: "user_get_server_metrics",
-    description: "Get saved server metrics settings",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/user.getServerMetrics"),
-  },
-  {
-    name: "user_get_container_metrics",
-    description: "Get container metrics",
-    inputSchema: { type: "object", properties: { url: { type: "string", description: "Metrics URL" }, token: { type: "string", description: "Metrics token" }, appName: { type: "string", description: "Application name" }, dataPoints: { type: "string", description: "Data points" } }, required: ["url", "token", "appName", "dataPoints"] },
-    handler: (args) => client.get("/user.getContainerMetrics", args),
-  },
-
-  {
-    name: "auth_create_admin",
-    description: "Create an admin user",
-    inputSchema: { type: "object", properties: { email: { type: "string", description: "Admin email" }, password: { type: "string", description: "Admin password" } }, required: ["email", "password"] },
-    handler: (args) => client.post("/auth.createAdmin", args),
-  },
-  {
-    name: "auth_create_user",
-    description: "Create a user account",
-    inputSchema: { type: "object", properties: { email: { type: "string", description: "User email" }, password: { type: "string", description: "User password" } }, required: ["email", "password"] },
-    handler: (args) => client.post("/auth.createUser", args),
-  },
-  {
-    name: "auth_get",
-    description: "Get authentication status",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/auth.get"),
-  },
-  {
-    name: "auth_generate_token",
-    description: "Generate an auth token",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.post("/auth.generateToken"),
-  },
-
-  {
-    name: "ssh_key_create",
-    description: "Create an SSH key",
-    inputSchema: { type: "object", properties: { name: { type: "string", description: "SSH key name" }, publicKey: { type: "string", description: "Public key" }, privateKey: { type: "string", description: "Private key" }, description: { type: "string", description: "Description" }, organizationId: { type: "string", description: "Organization ID" } }, required: ["name", "publicKey", "privateKey", "organizationId"] },
-    handler: (args) => client.post("/sshKey.create", args),
-  },
-  {
-    name: "ssh_key_one",
-    description: "Get an SSH key by ID",
-    inputSchema: { type: "object", properties: { sshKeyId: { type: "string", description: "SSH key ID" } }, required: ["sshKeyId"] },
-    handler: (args) => client.get("/sshKey.one", { sshKeyId: args.sshKeyId }),
-  },
-  {
-    name: "ssh_key_all",
-    description: "Get all SSH keys",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/sshKey.all"),
-  },
-  {
-    name: "ssh_key_remove",
-    description: "Remove an SSH key",
-    inputSchema: { type: "object", properties: { sshKeyId: { type: "string", description: "SSH key ID" } }, required: ["sshKeyId"] },
-    handler: (args) => client.post("/sshKey.remove", { sshKeyId: args.sshKeyId }),
-  },
-  {
-    name: "ssh_key_generate",
-    description: "Generate an SSH key pair",
-    inputSchema: { type: "object", properties: { type: { type: "string", enum: ["rsa", "ed25519"], description: "SSH key type" } } },
-    handler: (args) => client.post("/sshKey.generate", args),
-  },
-  {
-    name: "ssh_key_update",
-    description: "Update an SSH key",
-    inputSchema: { type: "object", properties: { sshKeyId: { type: "string", description: "SSH key ID" }, name: { type: "string", description: "Key name" }, description: { type: "string", description: "Description" } }, required: ["sshKeyId"] },
-    handler: (args) => client.post("/sshKey.update", args),
-  },
-
-  {
-    name: "settings_reload_server",
-    description: "Reload Dokploy server settings",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.post("/settings.reloadServer"),
-  },
-  {
-    name: "settings_clean_redis",
-    description: "Clean Redis cache",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.post("/settings.cleanRedis"),
-  },
-  {
-    name: "settings_reload_redis",
-    description: "Reload Redis",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.post("/settings.reloadRedis"),
-  },
-  {
-    name: "settings_reload_traefik",
-    description: "Reload Traefik",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.post("/settings.reloadTraefik", args),
-  },
-  {
-    name: "settings_toggle_dashboard",
-    description: "Toggle dashboard access",
-    inputSchema: { type: "object", properties: { enableDashboard: { type: "boolean", description: "Enable dashboard" }, serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.post("/settings.toggleDashboard", args),
-  },
-  {
-    name: "settings_clean_unused_images",
-    description: "Clean unused Docker images",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.post("/settings.cleanUnusedImages", args),
-  },
-  {
-    name: "settings_clean_unused_volumes",
-    description: "Clean unused Docker volumes",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.post("/settings.cleanUnusedVolumes", args),
-  },
-  {
-    name: "settings_clean_stopped_containers",
-    description: "Clean stopped containers",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.post("/settings.cleanStoppedContainers", args),
-  },
-  {
-    name: "settings_clean_docker_builder",
-    description: "Clean Docker builder cache",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.post("/settings.cleanDockerBuilder", args),
-  },
-  {
-    name: "settings_clean_docker_prune",
-    description: "Run Docker prune cleanup",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.post("/settings.cleanDockerPrune", args),
-  },
-  {
-    name: "settings_clean_all",
-    description: "Clean all unused Docker resources",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.post("/settings.cleanAll", args),
-  },
-  {
-    name: "settings_clean_monitoring",
-    description: "Clean monitoring data",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.post("/settings.cleanMonitoring"),
-  },
-  {
-    name: "settings_save_ssh_private_key",
-    description: "Save Dokploy SSH private key",
-    inputSchema: { type: "object", properties: { sshPrivateKey: { type: "string", description: "SSH private key content" } }, required: ["sshPrivateKey"] },
-    handler: (args) => client.post("/settings.saveSSHPrivateKey", args),
-  },
-  {
-    name: "settings_clean_ssh_private_key",
-    description: "Remove Dokploy SSH private key",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.post("/settings.cleanSSHPrivateKey"),
-  },
-  {
-    name: "settings_assign_domain_server",
-    description: "Assign domain server settings",
-    inputSchema: { type: "object", properties: { host: { type: "string", description: "Domain host" }, certificateType: { type: "string", enum: ["letsencrypt", "none", "custom"], description: "Certificate type" }, letsEncryptEmail: { type: "string", description: "Let's Encrypt email" }, https: { type: "boolean", description: "Enable HTTPS" } }, required: ["host", "certificateType"] },
-    handler: (args) => client.post("/settings.assignDomainServer", args),
-  },
-  {
-    name: "settings_update_docker_cleanup",
-    description: "Update Docker cleanup settings",
-    inputSchema: { type: "object", properties: { enableDockerCleanup: { type: "boolean", description: "Enable cleanup" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["enableDockerCleanup"] },
-    handler: (args) => client.post("/settings.updateDockerCleanup", args),
-  },
-  {
-    name: "settings_read_traefik_config",
-    description: "Read Traefik config",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/settings.readTraefikConfig"),
-  },
-  {
-    name: "settings_update_traefik_config",
-    description: "Update Traefik config",
-    inputSchema: { type: "object", properties: { traefikConfig: { type: "string", description: "Traefik config content" } }, required: ["traefikConfig"] },
-    handler: (args) => client.post("/settings.updateTraefikConfig", args),
-  },
-  {
-    name: "settings_read_web_server_traefik_config",
-    description: "Read web server Traefik config",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/settings.readWebServerTraefikConfig"),
-  },
-  {
-    name: "settings_update_web_server_traefik_config",
-    description: "Update web server Traefik config",
-    inputSchema: { type: "object", properties: { traefikConfig: { type: "string", description: "Traefik config content" } }, required: ["traefikConfig"] },
-    handler: (args) => client.post("/settings.updateWebServerTraefikConfig", args),
-  },
-
-  {
-    name: "docker_get_containers",
-    description: "Get Docker containers",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.get("/docker.getContainers", args),
-  },
-  {
-    name: "docker_restart_container",
-    description: "Restart a container",
-    inputSchema: { type: "object", properties: { containerId: { type: "string", description: "Container ID" } }, required: ["containerId"] },
-    handler: (args) => client.post("/docker.restartContainer", args),
-  },
-  {
-    name: "docker_get_config",
-    description: "Get container config",
-    inputSchema: { type: "object", properties: { containerId: { type: "string", description: "Container ID" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["containerId"] },
-    handler: (args) => client.get("/docker.getConfig", args),
-  },
-  {
-    name: "docker_get_containers_by_app_name_match",
-    description: "Get containers by app name match",
-    inputSchema: { type: "object", properties: { appName: { type: "string", description: "Application name" }, appType: { type: "string", enum: ["stack", "docker-compose"], description: "Application type" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["appName"] },
-    handler: (args) => client.get("/docker.getContainersByAppNameMatch", args),
-  },
-  {
-    name: "docker_get_containers_by_app_label",
-    description: "Get containers by app label",
-    inputSchema: { type: "object", properties: { appName: { type: "string", description: "Application name" }, type: { type: "string", enum: ["standalone", "swarm"], description: "Container type" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["appName", "type"] },
-    handler: (args) => client.get("/docker.getContainersByAppLabel", args),
-  },
-  {
-    name: "docker_get_stack_containers_by_app_name",
-    description: "Get stack containers by app name",
-    inputSchema: { type: "object", properties: { appName: { type: "string", description: "Application name" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["appName"] },
-    handler: (args) => client.get("/docker.getStackContainersByAppName", args),
-  },
-  {
-    name: "docker_get_service_containers_by_app_name",
-    description: "Get service containers by app name",
-    inputSchema: { type: "object", properties: { appName: { type: "string", description: "Application name" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["appName"] },
-    handler: (args) => client.get("/docker.getServiceContainersByAppName", args),
-  },
-
-  {
-    name: "backup_create",
-    description: "Create a backup configuration",
-    inputSchema: { type: "object", properties: { schedule: { type: "string", description: "Cron schedule" }, prefix: { type: "string", description: "Backup file prefix" }, destinationId: { type: "string", description: "Destination ID" }, database: { type: "string", description: "Database name" }, databaseType: { type: "string", enum: ["postgres", "mariadb", "mysql", "mongo", "web-server"], description: "Database type" }, enabled: { type: "boolean", description: "Enable schedule" }, keepLatestCount: { type: "number", description: "Backups to keep" }, postgresId: { type: "string", description: "PostgreSQL ID" }, mysqlId: { type: "string", description: "MySQL ID" }, mariadbId: { type: "string", description: "MariaDB ID" }, mongoId: { type: "string", description: "MongoDB ID" }, composeId: { type: "string", description: "Compose ID" }, serviceName: { type: "string", description: "Compose service name" } }, required: ["schedule", "prefix", "destinationId", "database", "databaseType"] },
-    handler: (args) => client.post("/backup.create", args),
-  },
-  {
-    name: "backup_one",
-    description: "Get a backup by ID",
-    inputSchema: { type: "object", properties: { backupId: { type: "string", description: "Backup ID" } }, required: ["backupId"] },
-    handler: (args) => client.get("/backup.one", { backupId: args.backupId }),
-  },
-  {
-    name: "backup_update",
-    description: "Update a backup configuration",
-    inputSchema: { type: "object", properties: { backupId: { type: "string", description: "Backup ID" }, schedule: { type: "string", description: "Cron schedule" }, enabled: { type: "boolean", description: "Enable schedule" }, prefix: { type: "string", description: "Backup prefix" }, destinationId: { type: "string", description: "Destination ID" }, database: { type: "string", description: "Database name" }, keepLatestCount: { type: "number", description: "Backups to keep" }, serviceName: { type: "string", description: "Compose service name" }, databaseType: { type: "string", enum: ["postgres", "mariadb", "mysql", "mongo", "web-server"], description: "Database type" } }, required: ["backupId", "schedule", "prefix", "destinationId", "database", "databaseType"] },
-    handler: (args) => client.post("/backup.update", args),
-  },
-  {
-    name: "backup_remove",
-    description: "Remove a backup configuration",
-    inputSchema: { type: "object", properties: { backupId: { type: "string", description: "Backup ID" } }, required: ["backupId"] },
-    handler: (args) => client.post("/backup.remove", { backupId: args.backupId }),
-  },
-  {
-    name: "backup_manual_backup_postgres",
-    description: "Run PostgreSQL backup manually",
-    inputSchema: { type: "object", properties: { backupId: { type: "string", description: "Backup ID" } }, required: ["backupId"] },
-    handler: (args) => client.post("/backup.manualBackupPostgres", { backupId: args.backupId }),
-  },
-  {
-    name: "backup_manual_backup_mysql",
-    description: "Run MySQL backup manually",
-    inputSchema: { type: "object", properties: { backupId: { type: "string", description: "Backup ID" } }, required: ["backupId"] },
-    handler: (args) => client.post("/backup.manualBackupMySql", { backupId: args.backupId }),
-  },
-  {
-    name: "backup_manual_backup_mariadb",
-    description: "Run MariaDB backup manually",
-    inputSchema: { type: "object", properties: { backupId: { type: "string", description: "Backup ID" } }, required: ["backupId"] },
-    handler: (args) => client.post("/backup.manualBackupMariadb", { backupId: args.backupId }),
-  },
-  {
-    name: "backup_manual_backup_compose",
-    description: "Run compose backup manually",
-    inputSchema: { type: "object", properties: { backupId: { type: "string", description: "Backup ID" } }, required: ["backupId"] },
-    handler: (args) => client.post("/backup.manualBackupCompose", { backupId: args.backupId }),
-  },
-  {
-    name: "backup_manual_backup_mongo",
-    description: "Run MongoDB backup manually",
-    inputSchema: { type: "object", properties: { backupId: { type: "string", description: "Backup ID" } }, required: ["backupId"] },
-    handler: (args) => client.post("/backup.manualBackupMongo", { backupId: args.backupId }),
-  },
-  {
-    name: "backup_manual_backup_web_server",
-    description: "Run web server backup manually",
-    inputSchema: { type: "object", properties: { backupId: { type: "string", description: "Backup ID" } }, required: ["backupId"] },
-    handler: (args) => client.post("/backup.manualBackupWebServer", { backupId: args.backupId }),
-  },
-  {
-    name: "backup_list_backup_files",
-    description: "List backup files",
-    inputSchema: { type: "object", properties: { destinationId: { type: "string", description: "Destination ID" }, search: { type: "string", description: "Search query" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["destinationId", "search"] },
-    handler: (args) => client.get("/backup.listBackupFiles", args),
-  },
-
-  {
-    name: "schedule_create",
-    description: "Create a schedule",
-    inputSchema: { type: "object", properties: { name: { type: "string", description: "Schedule name" }, cronExpression: { type: "string", description: "Cron expression" }, command: { type: "string", description: "Command" }, scheduleType: { type: "string", enum: ["application", "compose", "server", "dokploy-server"], description: "Schedule type" }, shellType: { type: "string", enum: ["bash", "sh"], description: "Shell type" }, script: { type: "string", description: "Script content" }, enabled: { type: "boolean", description: "Enable schedule" }, timezone: { type: "string", description: "Timezone" }, appName: { type: "string", description: "App name" }, serviceName: { type: "string", description: "Service name" }, applicationId: { type: "string", description: "Application ID" }, composeId: { type: "string", description: "Compose ID" }, serverId: { type: "string", description: "Server ID" } }, required: ["name", "cronExpression", "command"] },
-    handler: (args) => client.post("/schedule.create", args),
-  },
-  {
-    name: "schedule_update",
-    description: "Update a schedule",
-    inputSchema: { type: "object", properties: { scheduleId: { type: "string", description: "Schedule ID" }, name: { type: "string", description: "Schedule name" }, cronExpression: { type: "string", description: "Cron expression" }, command: { type: "string", description: "Command" }, scheduleType: { type: "string", enum: ["application", "compose", "server", "dokploy-server"], description: "Schedule type" }, shellType: { type: "string", enum: ["bash", "sh"], description: "Shell type" }, script: { type: "string", description: "Script content" }, enabled: { type: "boolean", description: "Enable schedule" }, timezone: { type: "string", description: "Timezone" }, appName: { type: "string", description: "App name" }, serviceName: { type: "string", description: "Service name" }, applicationId: { type: "string", description: "Application ID" }, composeId: { type: "string", description: "Compose ID" }, serverId: { type: "string", description: "Server ID" } }, required: ["scheduleId", "name", "cronExpression", "command"] },
-    handler: (args) => client.post("/schedule.update", args),
-  },
-  {
-    name: "schedule_delete",
-    description: "Delete a schedule",
-    inputSchema: { type: "object", properties: { scheduleId: { type: "string", description: "Schedule ID" } }, required: ["scheduleId"] },
-    handler: (args) => client.post("/schedule.delete", { scheduleId: args.scheduleId }),
-  },
-  {
-    name: "schedule_list",
-    description: "List schedules",
-    inputSchema: { type: "object", properties: { id: { type: "string", description: "Resource ID" }, scheduleType: { type: "string", enum: ["application", "compose", "server", "dokploy-server"], description: "Schedule type" } }, required: ["id", "scheduleType"] },
-    handler: (args) => client.get("/schedule.list", args),
-  },
-  {
-    name: "schedule_one",
-    description: "Get a schedule by ID",
-    inputSchema: { type: "object", properties: { scheduleId: { type: "string", description: "Schedule ID" } }, required: ["scheduleId"] },
-    handler: (args) => client.get("/schedule.one", { scheduleId: args.scheduleId }),
-  },
-  {
-    name: "schedule_run_manually",
-    description: "Run a schedule manually",
-    inputSchema: { type: "object", properties: { scheduleId: { type: "string", description: "Schedule ID" } }, required: ["scheduleId"] },
-    handler: (args) => client.post("/schedule.runManually", { scheduleId: args.scheduleId }),
-  },
-
-  {
-    name: "registry_create",
-    description: "Create a registry",
-    inputSchema: { type: "object", properties: { registryName: { type: "string", description: "Registry name" }, registryUrl: { type: "string", description: "Registry URL" }, username: { type: "string", description: "Username" }, password: { type: "string", description: "Password" }, registryType: { type: "string", enum: ["cloud"], description: "Registry type" }, imagePrefix: { type: "string", description: "Image prefix" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["registryName", "registryUrl", "username", "password", "registryType"] },
-    handler: (args) => client.post("/registry.create", args),
-  },
-  {
-    name: "registry_one",
-    description: "Get a registry by ID",
-    inputSchema: { type: "object", properties: { registryId: { type: "string", description: "Registry ID" } }, required: ["registryId"] },
-    handler: (args) => client.get("/registry.one", { registryId: args.registryId }),
-  },
-  {
-    name: "registry_all",
-    description: "Get all registries",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/registry.all"),
-  },
-  {
-    name: "registry_remove",
-    description: "Remove a registry",
-    inputSchema: { type: "object", properties: { registryId: { type: "string", description: "Registry ID" } }, required: ["registryId"] },
-    handler: (args) => client.post("/registry.remove", { registryId: args.registryId }),
-  },
-  {
-    name: "registry_update",
-    description: "Update a registry",
-    inputSchema: { type: "object", properties: { registryId: { type: "string", description: "Registry ID" }, registryName: { type: "string", description: "Registry name" }, registryUrl: { type: "string", description: "Registry URL" }, username: { type: "string", description: "Username" }, password: { type: "string", description: "Password" }, registryType: { type: "string", enum: ["cloud"], description: "Registry type" }, imagePrefix: { type: "string", description: "Image prefix" }, organizationId: { type: "string", description: "Organization ID" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["registryId"] },
-    handler: (args) => client.post("/registry.update", args),
-  },
-  {
-    name: "registry_test_connection",
-    description: "Test a registry connection",
-    inputSchema: { type: "object", properties: { registryName: { type: "string", description: "Registry name" }, registryUrl: { type: "string", description: "Registry URL" }, username: { type: "string", description: "Username" }, password: { type: "string", description: "Password" }, registryType: { type: "string", enum: ["cloud"], description: "Registry type" }, imagePrefix: { type: "string", description: "Image prefix" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["registryUrl", "username", "password", "registryType"] },
-    handler: (args) => client.post("/registry.testRegistry", args),
-  },
-
-  {
-    name: "port_create",
-    description: "Create an exposed port",
-    inputSchema: { type: "object", properties: { publishedPort: { type: "number", description: "Published port" }, targetPort: { type: "number", description: "Target port" }, publishMode: { type: "string", enum: ["ingress", "host"], description: "Publish mode" }, protocol: { type: "string", enum: ["tcp", "udp"], description: "Protocol" }, applicationId: { type: "string", description: "Application ID" } }, required: ["publishedPort", "targetPort", "applicationId"] },
-    handler: (args) => client.post("/port.create", args),
-  },
-  {
-    name: "port_one",
-    description: "Get a port by ID",
-    inputSchema: { type: "object", properties: { portId: { type: "string", description: "Port ID" } }, required: ["portId"] },
-    handler: (args) => client.get("/port.one", { portId: args.portId }),
-  },
-  {
-    name: "port_delete",
-    description: "Delete an exposed port",
-    inputSchema: { type: "object", properties: { portId: { type: "string", description: "Port ID" } }, required: ["portId"] },
-    handler: (args) => client.post("/port.delete", { portId: args.portId }),
-  },
-  {
-    name: "port_update",
-    description: "Update an exposed port",
-    inputSchema: { type: "object", properties: { portId: { type: "string", description: "Port ID" }, publishedPort: { type: "number", description: "Published port" }, targetPort: { type: "number", description: "Target port" }, publishMode: { type: "string", enum: ["ingress", "host"], description: "Publish mode" }, protocol: { type: "string", enum: ["tcp", "udp"], description: "Protocol" } }, required: ["portId", "publishedPort", "targetPort"] },
-    handler: (args) => client.post("/port.update", args),
-  },
-
-  {
-    name: "mount_create",
-    description: "Create a mount",
-    inputSchema: { type: "object", properties: { type: { type: "string", enum: ["bind", "volume", "file"], description: "Mount type" }, hostPath: { type: "string", description: "Host path" }, volumeName: { type: "string", description: "Volume name" }, content: { type: "string", description: "File content" }, mountPath: { type: "string", description: "Mount path" }, serviceType: { type: "string", enum: ["application", "postgres", "mysql", "mariadb", "mongo", "redis", "compose"], description: "Service type" }, filePath: { type: "string", description: "File path" }, serviceId: { type: "string", description: "Service ID" } }, required: ["type", "mountPath", "serviceId"] },
-    handler: (args) => client.post("/mounts.create", args),
-  },
-  {
-    name: "mount_one",
-    description: "Get a mount by ID",
-    inputSchema: { type: "object", properties: { mountId: { type: "string", description: "Mount ID" } }, required: ["mountId"] },
-    handler: (args) => client.get("/mounts.one", { mountId: args.mountId }),
-  },
-  {
-    name: "mount_delete",
-    description: "Delete a mount",
-    inputSchema: { type: "object", properties: { mountId: { type: "string", description: "Mount ID" } }, required: ["mountId"] },
-    handler: (args) => client.post("/mounts.remove", { mountId: args.mountId }),
-  },
-
-  {
-    name: "redirect_create",
-    description: "Create a redirect",
-    inputSchema: { type: "object", properties: { regex: { type: "string", description: "Regex pattern" }, replacement: { type: "string", description: "Replacement string" }, permanent: { type: "boolean", description: "Permanent redirect" }, applicationId: { type: "string", description: "Application ID" } }, required: ["regex", "replacement", "permanent", "applicationId"] },
-    handler: (args) => client.post("/redirects.create", args),
-  },
-  {
-    name: "redirect_one",
-    description: "Get a redirect by ID",
-    inputSchema: { type: "object", properties: { redirectId: { type: "string", description: "Redirect ID" } }, required: ["redirectId"] },
-    handler: (args) => client.get("/redirects.one", { redirectId: args.redirectId }),
-  },
-  {
-    name: "redirect_delete",
-    description: "Delete a redirect",
-    inputSchema: { type: "object", properties: { redirectId: { type: "string", description: "Redirect ID" } }, required: ["redirectId"] },
-    handler: (args) => client.post("/redirects.delete", { redirectId: args.redirectId }),
-  },
-  {
-    name: "redirect_update",
-    description: "Update a redirect",
-    inputSchema: { type: "object", properties: { redirectId: { type: "string", description: "Redirect ID" }, regex: { type: "string", description: "Regex pattern" }, replacement: { type: "string", description: "Replacement string" }, permanent: { type: "boolean", description: "Permanent redirect" } }, required: ["redirectId", "regex", "replacement", "permanent"] },
-    handler: (args) => client.post("/redirects.update", args),
-  },
-
-  {
-    name: "security_create",
-    description: "Create security basic auth",
-    inputSchema: { type: "object", properties: { username: { type: "string", description: "Basic auth username" }, password: { type: "string", description: "Basic auth password" }, applicationId: { type: "string", description: "Application ID" } }, required: ["username", "password", "applicationId"] },
-    handler: (args) => client.post("/security.create", args),
-  },
-  {
-    name: "security_one",
-    description: "Get security config by ID",
-    inputSchema: { type: "object", properties: { securityId: { type: "string", description: "Security ID" } }, required: ["securityId"] },
-    handler: (args) => client.get("/security.one", { securityId: args.securityId }),
-  },
-  {
-    name: "security_delete",
-    description: "Delete security config",
-    inputSchema: { type: "object", properties: { securityId: { type: "string", description: "Security ID" } }, required: ["securityId"] },
-    handler: (args) => client.post("/security.delete", { securityId: args.securityId }),
-  },
-  {
-    name: "security_update",
-    description: "Update security config",
-    inputSchema: { type: "object", properties: { securityId: { type: "string", description: "Security ID" }, username: { type: "string", description: "Basic auth username" }, password: { type: "string", description: "Basic auth password" } }, required: ["securityId", "username", "password"] },
-    handler: (args) => client.post("/security.update", args),
-  },
-
-  {
-    name: "certificate_create",
-    description: "Create a certificate",
-    inputSchema: { type: "object", properties: { certificateId: { type: "string", description: "Certificate ID" }, name: { type: "string", description: "Certificate name" }, certificateData: { type: "string", description: "Certificate data" }, privateKey: { type: "string", description: "Private key" }, certificatePath: { type: "string", description: "Certificate path" }, autoRenew: { type: "boolean", description: "Enable auto renew" }, organizationId: { type: "string", description: "Organization ID" }, serverId: { type: "string", description: "Server ID" } }, required: ["name", "certificateData", "privateKey", "organizationId"] },
-    handler: (args) => client.post("/certificates.create", args),
-  },
-  {
-    name: "certificate_one",
-    description: "Get a certificate by ID",
-    inputSchema: { type: "object", properties: { certificateId: { type: "string", description: "Certificate ID" } }, required: ["certificateId"] },
-    handler: (args) => client.get("/certificates.one", { certificateId: args.certificateId }),
-  },
-  {
-    name: "certificate_all",
-    description: "Get all certificates",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/certificates.all"),
-  },
-  {
-    name: "certificate_remove",
-    description: "Remove a certificate",
-    inputSchema: { type: "object", properties: { certificateId: { type: "string", description: "Certificate ID" } }, required: ["certificateId"] },
-    handler: (args) => client.post("/certificates.remove", { certificateId: args.certificateId }),
-  },
-  {
-    name: "certificate_renew",
-    description: "Renew a certificate",
-    inputSchema: { type: "object", properties: { certificateId: { type: "string", description: "Certificate ID" } }, required: ["certificateId"] },
-    handler: (args) => client.post("/certificates.renew", { certificateId: args.certificateId }),
-  },
-
-  {
-    name: "destination_create",
-    description: "Create a destination",
-    inputSchema: { type: "object", properties: { name: { type: "string", description: "Destination name" }, provider: { type: "string", description: "Provider" }, accessKey: { type: "string", description: "Access key" }, bucket: { type: "string", description: "Bucket name" }, region: { type: "string", description: "Region" }, endpoint: { type: "string", description: "Endpoint URL" }, secretAccessKey: { type: "string", description: "Secret access key" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["name", "provider", "accessKey", "bucket", "region", "endpoint", "secretAccessKey"] },
-    handler: (args) => client.post("/destination.create", args),
-  },
-  {
-    name: "destination_one",
-    description: "Get a destination by ID",
-    inputSchema: { type: "object", properties: { destinationId: { type: "string", description: "Destination ID" } }, required: ["destinationId"] },
-    handler: (args) => client.get("/destination.one", { destinationId: args.destinationId }),
-  },
-  {
-    name: "destination_all",
-    description: "Get all destinations",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/destination.all"),
-  },
-  {
-    name: "destination_remove",
-    description: "Remove a destination",
-    inputSchema: { type: "object", properties: { destinationId: { type: "string", description: "Destination ID" } }, required: ["destinationId"] },
-    handler: (args) => client.post("/destination.remove", { destinationId: args.destinationId }),
-  },
-  {
-    name: "destination_update",
-    description: "Update a destination",
-    inputSchema: { type: "object", properties: { destinationId: { type: "string", description: "Destination ID" }, name: { type: "string", description: "Destination name" }, provider: { type: "string", description: "Provider" }, accessKey: { type: "string", description: "Access key" }, bucket: { type: "string", description: "Bucket name" }, region: { type: "string", description: "Region" }, endpoint: { type: "string", description: "Endpoint URL" }, secretAccessKey: { type: "string", description: "Secret access key" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["destinationId", "name", "provider", "accessKey", "bucket", "region", "endpoint", "secretAccessKey"] },
-    handler: (args) => client.post("/destination.update", args),
-  },
-  {
-    name: "destination_test_connection",
-    description: "Test a destination connection",
-    inputSchema: { type: "object", properties: { name: { type: "string", description: "Destination name" }, provider: { type: "string", description: "Provider" }, accessKey: { type: "string", description: "Access key" }, bucket: { type: "string", description: "Bucket name" }, region: { type: "string", description: "Region" }, endpoint: { type: "string", description: "Endpoint URL" }, secretAccessKey: { type: "string", description: "Secret access key" } }, required: ["name", "provider", "accessKey", "bucket", "region", "endpoint", "secretAccessKey"] },
-    handler: (args) => client.post("/destination.testConnection", args),
-  },
-
-  {
-    name: "swarm_get_nodes",
-    description: "Get Swarm nodes",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.get("/swarm.getNodes", args),
-  },
-  {
-    name: "swarm_get_node_info",
-    description: "Get Swarm node info",
-    inputSchema: { type: "object", properties: { nodeId: { type: "string", description: "Node ID" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["nodeId"] },
-    handler: (args) => client.get("/swarm.getNodeInfo", args),
-  },
-  {
-    name: "swarm_get_node_apps",
-    description: "Get Swarm node apps",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.get("/swarm.getNodeApps", args),
-  },
-
-  {
-    name: "organization_create",
-    description: "Create an organization",
-    inputSchema: { type: "object", properties: { name: { type: "string", description: "Organization name" }, logo: { type: "string", description: "Organization logo" } }, required: ["name"] },
-    handler: (args) => client.post("/organization.create", args),
-  },
-  {
-    name: "organization_one",
-    description: "Get an organization by ID",
-    inputSchema: { type: "object", properties: { organizationId: { type: "string", description: "Organization ID" } }, required: ["organizationId"] },
-    handler: (args) => client.get("/organization.one", { organizationId: args.organizationId }),
-  },
-  {
-    name: "organization_all",
-    description: "Get all organizations",
-    inputSchema: { type: "object", properties: {} },
-    handler: () => client.get("/organization.all"),
-  },
-  {
-    name: "organization_update",
-    description: "Update an organization",
-    inputSchema: { type: "object", properties: { organizationId: { type: "string", description: "Organization ID" }, name: { type: "string", description: "Organization name" }, logo: { type: "string", description: "Organization logo" } }, required: ["organizationId", "name"] },
-    handler: (args) => client.post("/organization.update", args),
-  },
-  {
-    name: "organization_remove",
-    description: "Remove an organization",
-    inputSchema: { type: "object", properties: { organizationId: { type: "string", description: "Organization ID" } }, required: ["organizationId"] },
-    handler: (args) => client.post("/organization.delete", { organizationId: args.organizationId }),
-  },
-
-  {
-    name: "cluster_get_nodes",
-    description: "Get cluster nodes",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.get("/cluster.getNodes", args),
-  },
-  {
-    name: "cluster_add_worker",
-    description: "Get cluster worker join command",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.get("/cluster.addWorker", args),
-  },
-  {
-    name: "cluster_add_manager",
-    description: "Get cluster manager join command",
-    inputSchema: { type: "object", properties: { serverId: { type: "string", description: "Optional server ID" } } },
-    handler: (args) => client.get("/cluster.addManager", args),
-  },
-  {
-    name: "cluster_remove_worker",
-    description: "Remove a cluster worker",
-    inputSchema: { type: "object", properties: { nodeId: { type: "string", description: "Node ID" }, serverId: { type: "string", description: "Optional server ID" } }, required: ["nodeId"] },
-    handler: (args) => client.post("/cluster.removeWorker", args),
-  },
-
-  {
-    name: "volume_backup_create",
-    description: "Create a volume backup",
-    inputSchema: { type: "object", properties: { name: { type: "string", description: "Volume backup name" }, volumeName: { type: "string", description: "Volume name" }, prefix: { type: "string", description: "Backup prefix" }, serviceType: { type: "string", enum: ["application", "postgres", "mysql", "mariadb", "mongo", "redis", "compose"], description: "Service type" }, appName: { type: "string", description: "App name" }, serviceName: { type: "string", description: "Service name" }, turnOff: { type: "boolean", description: "Turn off service during backup" }, cronExpression: { type: "string", description: "Cron expression" }, keepLatestCount: { type: "number", description: "Backups to keep" }, enabled: { type: "boolean", description: "Enable schedule" }, applicationId: { type: "string", description: "Application ID" }, postgresId: { type: "string", description: "PostgreSQL ID" }, mariadbId: { type: "string", description: "MariaDB ID" }, mongoId: { type: "string", description: "MongoDB ID" }, mysqlId: { type: "string", description: "MySQL ID" }, redisId: { type: "string", description: "Redis ID" }, composeId: { type: "string", description: "Compose ID" }, destinationId: { type: "string", description: "Destination ID" } }, required: ["name", "volumeName", "prefix", "cronExpression", "destinationId"] },
-    handler: (args) => client.post("/volumeBackups.create", args),
-  },
-  {
-    name: "volume_backup_one",
-    description: "Get a volume backup by ID",
-    inputSchema: { type: "object", properties: { volumeBackupId: { type: "string", description: "Volume backup ID" } }, required: ["volumeBackupId"] },
-    handler: (args) => client.get("/volumeBackups.one", { volumeBackupId: args.volumeBackupId }),
-  },
-  {
-    name: "volume_backup_all",
-    description: "List volume backups",
-    inputSchema: { type: "object", properties: { id: { type: "string", description: "Resource ID" }, volumeBackupType: { type: "string", enum: ["application", "postgres", "mysql", "mariadb", "mongo", "redis", "compose"], description: "Volume backup type" } }, required: ["id", "volumeBackupType"] },
-    handler: (args) => client.get("/volumeBackups.list", args),
-  },
-  {
-    name: "volume_backup_remove",
-    description: "Remove a volume backup",
-    inputSchema: { type: "object", properties: { volumeBackupId: { type: "string", description: "Volume backup ID" } }, required: ["volumeBackupId"] },
-    handler: (args) => client.post("/volumeBackups.delete", { volumeBackupId: args.volumeBackupId }),
-  },
-  {
-    name: "volume_backup_run_manually",
-    description: "Run a volume backup manually",
-    inputSchema: { type: "object", properties: { volumeBackupId: { type: "string", description: "Volume backup ID" } }, required: ["volumeBackupId"] },
-    handler: (args) => client.post("/volumeBackups.runManually", { volumeBackupId: args.volumeBackupId }),
-  },
-
-  {
-    name: "rollback_remove",
-    description: "Remove a rollback entry",
-    inputSchema: { type: "object", properties: { rollbackId: { type: "string", description: "Rollback ID" } }, required: ["rollbackId"] },
-    handler: (args) => client.post("/rollback.delete", { rollbackId: args.rollbackId }),
-  },
-  {
-    name: "rollback_rollback",
-    description: "Execute a rollback",
-    inputSchema: { type: "object", properties: { rollbackId: { type: "string", description: "Rollback ID" } }, required: ["rollbackId"] },
-    handler: (args) => client.post("/rollback.rollback", { rollbackId: args.rollbackId }),
-  },
-  ];
-
-const tools = toolDefinitions.map(({ name, description, inputSchema }) => ({
+const tools = skillTools.map(({ name, description, inputSchema }) => ({
   name,
   description,
   inputSchema,
@@ -2285,16 +384,100 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 
-  const tool = toolDefinitions.find((t) => t.name === name);
-  if (!tool) {
-    return {
-      content: [{ type: "text", text: `Error: Unknown tool: ${name}` }],
-      isError: true,
-    };
-  }
-
   try {
-    const result = await tool.handler(args);
+    let result: any;
+
+    switch (name) {
+      case "dokploy_smart_route": {
+        const response = await skill.handle({
+          message: String(args.request || ""),
+          context: args.context as { projectId?: string; environmentId?: string; previousActions?: string[] },
+        });
+        result = response;
+        break;
+      }
+
+      case "dokploy_deploy_application": {
+        const response = await skill.handle({
+          message: `deploy application ${args.appName} in project ${args.projectName}`,
+          context: args as Record<string, any>,
+        });
+        result = response;
+        break;
+      }
+
+      case "dokploy_create_database": {
+        const response = await skill.handle({
+          message: `create ${args.engine} database ${args.name}`,
+          context: args as Record<string, any>,
+        });
+        result = response;
+        break;
+      }
+
+      case "dokploy_debug_service": {
+        const response = await skill.handle({
+          message: `debug service ${args.identifier}`,
+          context: args as Record<string, any>,
+        });
+        result = response;
+        break;
+      }
+
+      case "dokploy_discover": {
+        result = {
+          categories: Object.entries(categoryMap).map(([key, config]) => ({
+            id: key,
+            name: config.name,
+            tools: config.tools,
+            tokens: config.tokens,
+          })),
+          workflows: Object.entries(workflows).map(([key, workflow]) => ({
+            id: key,
+            name: workflow.name,
+            description: workflow.description,
+          })),
+          crossCategoryWorkflows: Object.entries(crossCategoryWorkflows).map(([key, config]) => ({
+            id: key,
+            name: config.name,
+            categories: config.categories,
+            tokens: config.tokens,
+          })),
+        };
+        break;
+      }
+
+      case "dokploy_project":
+      case "dokploy_application":
+      case "dokploy_database":
+      case "dokploy_compose":
+      case "dokploy_domain":
+      case "dokploy_server":
+      case "dokploy_docker":
+      case "dokploy_deployment":
+      case "dokploy_settings":
+      case "dokploy_user":
+      case "dokploy_notification":
+      case "dokploy_backup":
+      case "dokploy_ssh":
+      case "dokploy_registry":
+      case "dokploy_security": {
+        const category = name.replace("dokploy_", "");
+        const response = await skill.handle({
+          message: `${category} ${args.action}`,
+          context: args as Record<string, any>,
+        });
+        result = response;
+        break;
+      }
+
+      default:
+        return {
+          content: [{ type: "text", text: `Error: Unknown tool: ${name}` }],
+          isError: true,
+        };
+    }
+
     return {
       content: [
         {
